@@ -1,6 +1,5 @@
 #lang racket
 (require "pmatch.rkt")
-(provide typecheck)
 (define consistent?
   (lambda (T1 T2)
     (pmatch `(,T1 ,T2)

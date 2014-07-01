@@ -3,6 +3,7 @@
 (provide typecheck)
 (define consistent?
   (lambda (T1 T2)
+   
     (pmatch `(,T1 ,T2)
             (`(,T1 dyn) #t)
             (`(dyn ,T2) #t)
@@ -12,6 +13,7 @@
             (`other #f))))
 (define meet
   (lambda (T1 T2)
+    
     (pmatch `(,T1 ,T2)
             (`(,T1 dyn) T1)
             (`(dyn ,T2) T2)
@@ -65,10 +67,10 @@
                                                                                     `((if ,(mk-cast l new-cnd cnd-T 'bool) ,(mk-cast l new-thn thn-T if-T) ,(mk-cast l new-thn els-T if-T)) ,if-T)))
                                                                                  (else (error 'typecheck "ill-typed expression"))))))
             (`,x (guard (symbol? x)) `(,x ,(cdr (assq x env))))
-            (`(λ (,x) ,e1) (typecheck env `(λ (,x : dyn) ,e1)))
-            (`(λ (,x : ,T1) ,e1)
+            (`(lambda (,x) ,e1) (typecheck env `(lambda (,x : dyn) ,e1)))
+            (`(lambda (,x : ,T1) ,e1)
              (pmatch `,(typecheck `((,x . ,T1) . ,env) e1)
-                     (`(,new-e ,ret-T) `((λ (,x : ,T1) ,new-e)(-> ,T1 ,ret-T)))))
+                     (`(,new-e ,ret-T) `((lambda (,x : ,T1) ,new-e)(-> ,T1 ,ret-T)))))
             (`(,e1 : ,T ,l)
              (pmatch `(typecheck env e1)
                      (`(,new-e ,e-T)
@@ -104,17 +106,18 @@
                                                                                   (let ((if-T (meet thn-T els-T)))
                                                                                     `((if ,(mk-cast l new-cnd cnd-T 'bool) ,(mk-cast l new-thn thn-T if-T) ,(mk-cast l new-thn els-T if-T)) ,if-T)))
                                                                                  (else (error 'typecheck "ill-typed expression"))))))
-            (`,x (guard (symbol? x)) `(,x ,(cdr (assq x env))))
-            (`(λ (,x) ,e1) (typecheck env `(λ (,x : dyn) ,e1)))
-            (`(λ (,x : ,T1) ,e1)
-             (pmatch `,(typecheck `((,x . ,T1) . ,env) e1)
-                     (`(,new-e ,ret-T) `((λ (,x : ,T1) ,new-e)(-> ,T1 ,ret-T)))))
+            (`,x (guard (symbol? x)) `(,x ,(car (cdr (cdr (assq x env))))))
+            (`(lambda (,x ,id) ,e1) (typecheck env `(lambda (,x ,id : dyn) ,e1)))
+            (`(lambda (,x ,id : ,T1) ,e1)
+             (pmatch `,(typecheck `((,x ,id ,T1) . ,env) e1)
+                     (`(,new-e ,ret-T) `((lambda (,x ,id : ,T1) ,new-e)(-> ,T1 ,ret-T)))))
             (`(,e1 : ,T ,l)
              (pmatch `(typecheck env e1)
                      (`(,new-e ,e-T)
                       (cond
                         ((consistent? e-T T) `(,(mk-cast l new-e e-T T)))
                         (else (error 'typecheck "cast between inconsistent types"))))))
+            
             (`(,e1 ,e2 ,l)
              (pmatch `( ,(typecheck env e2) ,(typecheck env e1))
                      (`((,new-e2 ,T2) (,new-e1 dyn))
