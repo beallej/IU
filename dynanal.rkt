@@ -7,7 +7,8 @@
 ;Original type observation global list
 (define type-obs
   '())
-
+(define coverage
+  '())
 ;Performs dynamic analysis and prints out results
 (define evals
   (lambda (exp)
@@ -15,6 +16,9 @@
     (display exp)
     (display "\nEvaluation: ")
     (display (evalRec exp '()))
+    (display "\nCoverage: ")
+    (display (calc-cov))
+    (display "%")
     (display "\nType Observations: ")
     (display type-obs)
     (display "\nTypes Inserted: ")
@@ -24,7 +28,80 @@
     (display "\nCheck with new types: ")
     (display (typecheck '() (insert-types exp)))
     (display "\n")
-    (display "\n")))
+    (display "\n")
+    (set! coverage '())))
+
+(define calc-cov
+  (lambda ()
+    (if (null? coverage) 0
+      (/ (round (* 1000.0 (/ (foldl + 0 coverage) (length coverage)))) 10))))
+
+;Evaluates expression and records types found
+;FIX COVERAGE ALGORITHM!!
+(define evalRec
+  (lambda (exp env)
+    (pmatch exp
+            (`,num (guard (number? num)) (set! coverage `(1 . ,coverage)) num)
+            (`,bool (guard (boolean? bool)) (set! coverage `(1 . ,coverage)) bool)
+            (`(,op ,e ,l) (guard (member op '(inc dec zero?)))
+                          (set! coverage `(1 . ,coverage)) 
+                          (let ((nexp (evalRec e env)))
+                            (cond
+                              ((not (number? nexp)) (error "expression not number, problem is " l))
+                              ((eq? 'inc op) (+ 1 nexp))
+                              ((eq? 'dec op) (- nexp 1))
+                              ((eq? 'zero? op) (zero? nexp)))))
+            (`(if ,t ,c ,a ,l) (set! coverage `(,(/ 2 3) . ,coverage)) (let ((texp (evalRec t env)))
+                                 (if  (boolean? texp)
+                                      (if texp
+                                          (evalRec c env)
+                                          (evalRec a env))
+                                      (error "test not boolean, problem is: " l))))
+            (`(lambda (,x ,id : ,T) ,e)
+             (set! coverage `(1 . ,coverage))
+             (set! type-obs (extend-Trec id T type-obs))
+             `(closure ,x ,id ,e ,env));)
+            
+            (`(lambda (,x ,id) ,e)
+             (set! coverage `(1 . ,coverage))
+             `(closure ,x ,id ,e ,env))
+            (`(,e1 ,e2 ,l) (set! coverage `(1 . ,coverage)) (let* ([v1 (evalRec e1 env)] [v2 (evalRec e2 env)])
+                             (pmatch v1                                    
+                                     (`(closure ,x ,id ,e11 ,env11)
+                                      (set! type-obs (extend-Trec id (type v2) type-obs))                                               
+                                      (evalRec e11 (extend-env x id v2 env11))))))    
+            (`(,e : ,T ,l)
+             (set! coverage `(1 . ,coverage))
+             `(cast ,l ,e ,T))
+            (`(cast ,l ,e ,T)  ;WHAT DO I DO WITH CASTS???
+             (set! coverage `(1 . ,coverage))
+             (set! type-obs (extend-Trec (gensym) T type-obs))
+             (evalRec e env))           
+            (`,x (guard (symbol? x)) (set! coverage `(1 . ,coverage)) (let ((ans (env-lookup x env))) ans))
+            (`,else (error "Invalid input"))))) 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ;Determines the type of a data value or operation
 (define type
@@ -63,42 +140,43 @@
             (`,x `,x))))
 
 
-;Evaluates expression and records types found
-(define evalRec
-  (lambda (exp env)
-    (pmatch exp
-            (`,num (guard (number? num)) num)
-            (`,bool (guard (boolean? bool)) bool)
-            (`(,op ,e ,l) (guard (member op '(inc dec zero?)))
-                          (let ((nexp (evalRec e env)))
-                            (cond
-                              ((not (number? nexp)) (error "expression not number, problem is " l))
-                              ((eq? 'inc op) (+ 1 nexp))
-                              ((eq? 'dec op) (- nexp 1))
-                              ((eq? 'zero? op) (zero? nexp)))))
-            (`(if ,t ,c ,a ,l) (let ((texp (evalRec t env)))
-                                 (if  (boolean? texp)
-                                      (if texp
-                                          (evalRec c env)
-                                          (evalRec a env))
-                                      (error "test not boolean, problem is: " l))))
-            (`(lambda (,x ,id : ,T) ,e)
-             (set! type-obs (extend-Trec id T type-obs))
-             `(closure ,x ,id ,e ,env));)
-            
-            (`(lambda (,x ,id) ,e)
-             `(closure ,x ,id ,e ,env))
-            (`(,e1 ,e2 ,l) (let* ([v1 (evalRec e1 env)] [v2 (evalRec e2 env)])
-                             (pmatch v1                                    
-                                     (`(closure ,x ,id ,e11 ,env11)
-                                      (set! type-obs (extend-Trec id (type v2) type-obs))                                               
-                                      (evalRec e11 (extend-env x id v2 env11))))))    
-            (`(,e : ,T ,l)
-             `(cast ,l ,e ,T))
-            (`(cast ,l ,e ,T)  ;WHAT DO I DO WITH CASTS???
-             (set! type-obs (extend-Trec (gensym) T type-obs))
-             (evalRec e env))           
-            (`,x (let ((ans (env-lookup x env))) ans))))) 
+;;Evaluates expression and records types found
+;(define evalRec
+;  (lambda (exp env)
+;    (pmatch exp
+;            (`,num (guard (number? num)) num)
+;            (`,bool (guard (boolean? bool)) bool)
+;            (`(,op ,e ,l) (guard (member op '(inc dec zero?)))
+;                          (let ((nexp (evalRec e env)))
+;                            (cond
+;                              ((not (number? nexp)) (error "expression not number, problem is " l))
+;                              ((eq? 'inc op) (+ 1 nexp))
+;                              ((eq? 'dec op) (- nexp 1))
+;                              ((eq? 'zero? op) (zero? nexp)))))
+;            (`(if ,t ,c ,a ,l) (let ((texp (evalRec t env)))
+;                                 (if  (boolean? texp)
+;                                      (if texp
+;                                          (evalRec c env)
+;                                          (evalRec a env))
+;                                      (error "test not boolean, problem is: " l))))
+;            (`(lambda (,x ,id : ,T) ,e)
+;             (set! type-obs (extend-Trec id T type-obs))
+;             `(closure ,x ,id ,e ,env));)
+;            
+;            (`(lambda (,x ,id) ,e)
+;             `(closure ,x ,id ,e ,env))
+;            (`(,e1 ,e2 ,l) (let* ([v1 (evalRec e1 env)] [v2 (evalRec e2 env)])
+;                             (pmatch v1                                    
+;                                     (`(closure ,x ,id ,e11 ,env11)
+;                                      (set! type-obs (extend-Trec id (type v2) type-obs))                                               
+;                                      (evalRec e11 (extend-env x id v2 env11))))))    
+;            (`(,e : ,T ,l)
+;             `(cast ,l ,e ,T))
+;            (`(cast ,l ,e ,T)  ;WHAT DO I DO WITH CASTS???
+;             (set! type-obs (extend-Trec (gensym) T type-obs))
+;             (evalRec e env))           
+;            (`,x (guard (symbol? x)) (let ((ans (env-lookup x env))) ans))
+;            (`,else (error "Invalid input"))))))) 
 
 ;Extends regular environment
 (define extend-env
@@ -194,7 +272,8 @@
            9 
            L) 
           L)
-         L))                 
+         L))
+;(evals '(if #t #f 7 L))
 (evals '(lambda (m m12) (m 3 L)))
 (evals '((lambda (g g12) ((lambda (h h12) ((lambda (i i12) (if i g h L)) #t L)) 4 L)) 9 L))
 (evals '((lambda (j j12) (j 3 L)) (lambda (q q12) (inc q L)) L))
