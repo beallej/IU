@@ -2,6 +2,7 @@
 (require  "pmatch.rkt")
 (require racket/include)
 (require "tcheck_modified.rkt")
+(require racket/contract)
 (define type-obs
  '())
 
@@ -117,6 +118,7 @@
             
             (`(lambda (,x ,id) ,e)
              ;`(closure ,x ,(gensym x) ,e ,env))
+             
              `(closure ,x ,id ,e ,env))
             
             
@@ -140,7 +142,8 @@
             (`(cast ,l ,e ,T)  ;WHAT DO I DO WITH CASTS???
              (set! type-obs (extend-Trec (gensym) T type-obs))
              (evalRec e env))
-            (`,x (let ((ans (env-lookup x env)) (tp (env-lookup-id x env))) (set! type-obs (extend-Trec tp (type ans) type-obs)) ans)))))
+            ;(`,x (let ((ans (env-lookup x env)) (tp (env-lookup-id x env))) (set! type-obs (extend-Trec tp (type ans) type-obs)) ans)))))
+            (`,x (let ((ans (env-lookup x env)) (tp (env-lookup-id x env)))  ans)))));(set! type-obs (extend-Trec tp (env-lookupT tp type-obs) type-obs)) ;ans)))))
             ;(`,x (env-lookup x env)))))
 (define extend-env
   (lambda (x id y env)
@@ -204,13 +207,31 @@
             (`(type (zero? ,e ,L)) `bool)
             (`(type ,id) (let ((typed (env-lookupT id type-obs))) (if (equal? null typed) `dyn typed))))))
             
-;(evals '((lambda (b b4) (b 7 L)) 
-;         ((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (v v7) (inc v L)) L )) 
-;          ((lambda (d d6) (zero? d L)) 
+
+
+;(evals '((lambda (d d6) (zero? d L)) 
 ;           9 
-;           L) 
-;          L)
-;         L))                 ;BRUH WHAT IS A CHAPERONE CONTRACT I DON'T EVEN.
+;           L))
+(evals '((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L)) 
+          #t 
+          L))
+(evals '(((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L)) 
+          #t 
+          L)
+         7 
+         L))
+(evals '(((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L)) 
+          ((lambda (d d6) (zero? d L)) 
+           9 
+           L) 
+          L) 7 L))
+(evals '((lambda (b b4) (b 7 L)) 
+         ((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L )) 
+          ((lambda (d d6) (zero? d L)) 
+           9 
+           L) 
+          L)
+         L))                 
 (evals '(lambda (m m12) (m 3 L)))
 (evals '((lambda (g g12) ((lambda (h h12) ((lambda (i i12) (if i g h L)) #t L)) 4 L)) 9 L))
 (evals '((lambda (j j12) (j 3 L)) (lambda (q q12) (inc q L)) L))
