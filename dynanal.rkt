@@ -2,10 +2,13 @@
 (require  "pmatch.rkt")
 (require racket/include)
 (require "tcheck_modified.rkt")
-(require racket/contract)
-(define type-obs
- '())
 
+
+;Original type observation global list
+(define type-obs
+  '())
+
+;Performs dynamic analysis and prints out results
 (define evals
   (lambda (exp)
     (display "Original expression: ")
@@ -22,6 +25,8 @@
     (display (typecheck '() (insert-types exp)))
     (display "\n")
     (display "\n")))
+
+;Determines the type of a data value or operation
 (define type
   (lambda (exp)
     (pmatch exp
@@ -31,28 +36,8 @@
             (`(dec ,x ,L) `int)
             (`(zero? ,x ,L) `bool)
             (`(closure ,x ,id ,e ,env) `(-> (type ,id) (type ,e))))))
-;(define insert-types
-;  (lambda (exp)     
-;    (pmatch exp           
-;            (`,num (guard (number? num)) num)
-;            (`,bool (guard (boolean? bool)) bool)
-;            (`(,op ,e ,l) (guard (member op '(inc dec zero?)))
-;                          `(,op ,(insert-types e) ,l))
-;            (`(if ,t ,c ,a ,l) 
-;             `(if ,(insert-types t) ,(insert-types c) ,(insert-types a) ,l))
-;            (`(lambda (,x ,id : ,T) ,e)     
-;             `(lambda (,x ,id : ,(env-lookupT id type-obs)) ,e))    
-;            (`(lambda (,x ,id) ,e)
-;             (let ((newtype (env-lookupT id type-obs)))
-;               (if (equal? newtype 'null)
-;                   `(lambda (,x ,id) ,(insert-types e))
-;                   `(lambda (,x ,id : ,newtype) ,(insert-types e)))))
-;            (`(,e1 ,e2 ,l)             
-;             `(,(insert-types e1) ,(insert-types e2) ,l)) 
-;            (`(,e ,id : ,T ,l)     
-;                                  ;`(,e ,id : ,(env-lookupT id type-obs))) 
-;             `(,(insert-types e) ,id : ,(env-lookupT id type-obs)))
-;            (`,x `,x))))
+
+;Inserts types from type-obs into expression
 (define insert-types
   (lambda (exp)     
     (pmatch exp           
@@ -66,37 +51,23 @@
              `(lambda (,x ,id : ,(env-lookupT id type-obs)) ,e))    
             (`(lambda (,x ,id) ,e)
              (let ((newtype (env-lookupT id type-obs)))
-               ;(display "newtype: ")
-               ;(display newtype)
-               ;(display "\n")
                (if (equal? newtype 'null)
                    `(lambda (,x ,id) ,(insert-types e))
                    `(lambda (,x ,id : ,newtype) ,(insert-types e)))))
             (`(,e1 ,e2 ,l)             
              `(,(insert-types e1) ,(insert-types e2) ,l)) 
-            (`(,e ,id : ,T ,l)     
-             ;`(,e ,id : ,(env-lookupT id type-obs))) 
+            (`(,e ,id : ,T ,l)             
              `(,(insert-types e) ,id : ,(env-lookupT id type-obs)))
-            (`(,e : ,T ,l)     
-             ;`(,e ,id : ,(env-lookupT id type-obs))) 
+            (`(,e : ,T ,l)              
              `(,(insert-types e) : ,T ,l))
             (`,x `,x))))
 
 
-
-
-
-
-
-
-
-
-
+;Evaluates expression and records types found
 (define evalRec
   (lambda (exp env)
     (pmatch exp
             (`,num (guard (number? num)) num)
-            ;(`(,num ,id) (guard (number? num)) (set! type-obs (extend-Trec id 'int type-obs)) num)
             (`,bool (guard (boolean? bool)) bool)
             (`(,op ,e ,l) (guard (member op '(inc dec zero?)))
                           (let ((nexp (evalRec e env)))
@@ -112,47 +83,31 @@
                                           (evalRec a env))
                                       (error "test not boolean, problem is: " l))))
             (`(lambda (,x ,id : ,T) ,e)
-             ;(let ((id (gensym x)))
              (set! type-obs (extend-Trec id T type-obs))
              `(closure ,x ,id ,e ,env));)
             
             (`(lambda (,x ,id) ,e)
-             ;`(closure ,x ,(gensym x) ,e ,env))
-             
              `(closure ,x ,id ,e ,env))
-            
-            
             (`(,e1 ,e2 ,l) (let* ([v1 (evalRec e1 env)] [v2 (evalRec e2 env)])
                              (pmatch v1                                    
                                      (`(closure ,x ,id ,e11 ,env11)
-                                      ;(pmatch v2
-                                              ;(`(closure ,y ,id12 ,e12 ,env12)
-                                               ;(set! type-obs (extend-Trec id (type v2) type-obs))                                               
-                                              ; (evalRec `(,v2 ,e11) (extend-env x id v2 env11)))
-                                             ; (`,else
-                                               (set! type-obs (extend-Trec id (type v2) type-obs))                                               
-                                               (evalRec e11 (extend-env x id v2 env11))))));))                                     
-            
-            ;(`((closure ,y ,id12 ,e12 ,env12) ,e) ???)
+                                      (set! type-obs (extend-Trec id (type v2) type-obs))                                               
+                                      (evalRec e11 (extend-env x id v2 env11))))))    
             (`(,e : ,T ,l)
              `(cast ,l ,e ,T))
-            ;(set! type-obs (extend-Trec id T type-obs))
-            ;(set! type-obs (extend-Trec (env-lookup-id x env) T type-obs))
-            
             (`(cast ,l ,e ,T)  ;WHAT DO I DO WITH CASTS???
              (set! type-obs (extend-Trec (gensym) T type-obs))
-             (evalRec e env))
-            ;(`,x (let ((ans (env-lookup x env)) (tp (env-lookup-id x env))) (set! type-obs (extend-Trec tp (type ans) type-obs)) ans)))))
-            (`,x (let ((ans (env-lookup x env)) (tp (env-lookup-id x env)))  ans)))));(set! type-obs (extend-Trec tp (env-lookupT tp type-obs) type-obs)) ;ans)))))
-            ;(`,x (env-lookup x env)))))
+             (evalRec e env))           
+            (`,x (let ((ans (env-lookup x env))) ans))))) 
+
+;Extends regular environment
 (define extend-env
   (lambda (x id y env)
     `(,(list x id y) . ,env)))    
 
+;Extends type environment
 (define extend-Trec
-  (lambda (x T env) 
-    ;(display env)
-    ;(display "   8  \n")
+  (lambda (x T env)    
     (if (null? env) `(,(cons x (list (list T))))
         (if (equal? x (car (car env)))         
             `,(cons 
@@ -160,43 +115,36 @@
                      (cond
                        [(null? (cdr (car env)))`( ,(cons T (cdr (car env))))]
                        [(member T (car (cdr (car env)))) `,(cdr (car env))]
-                       [else (list (append (list T) (cdr (car env))))]))
-               
-               ;                      (if 
-               ;                       (member T (car (cdr env))) 
-               ;                       (car (cdr env)) 
-               ;                       (cons T (car (cdr env)))))
+                       [else (list (append (list T) (cdr (car env))))]))              
                (cdr env))
             `,(cons (car env) (extend-Trec x T (cdr env)))))))
-(define env-lookup-id
-  (lambda (x env)
-    (let ((info (assoc x env))) 
-      (if info (car (cdr info)) (error "id- unbound variable" x)))))
+
+;Looks up what variables correspond to in environment
 (define env-lookup
   (lambda (x env)
     (let ((info (assoc x env)))
       (if info (car (cdr (cdr info))) (error "unbound variable" x)))))
+
+;Looks up what ids correspond to in type 
 (define env-lookupT
   (lambda (id env)
     (let ((info (assoc id env)))
       (if info
           (check-consistency (cdr (cdr info)) (resolve-type (car (car (cdr info)))))
           'null))))
-;    (if (null? env) 'null
-;        (if (equal? id (car (car env)))
-;            (check-consistency (cdr (cdr (car env))) (car (cdr (car env))))
-;            (env-lookupT id (cdr env))))))
+
+;Checks to see if all types in type env for a given id agree-- they are all the same or some are dyn
 (define check-consistency
   (lambda (types type1)
     (if (null? types) type1
-    (let ((type2 (resolve-type (car types))))
-    (cond    
-      [(equal? type1 'dyn) (check-consistency (cdr types) type2)]
-      [(equal? type2 'dyn) (check-consistency (cdr types) type1)]
-      [(equal? type1 type2) (check-consistency (cdr types) type1)]
-      [else (error "types inconsistent" type1"   " (car types))])))))
+        (let ((type2 (resolve-type (car types))))
+          (cond    
+            [(equal? type1 'dyn) (check-consistency (cdr types) type2)]
+            [(equal? type2 'dyn) (check-consistency (cdr types) type1)]
+            [(equal? type1 type2) (check-consistency (cdr types) type1)]
+            [else (error "types inconsistent" type1"   " (car types))])))))
 
-
+;returns the type of something, incase it couldn't be done before
 (define resolve-type
   (lambda (tv)
     (pmatch tv
@@ -206,15 +154,30 @@
             (`(type (,op ,e ,L)) (guard (member op '(inc dec))) `int) ;WHAT TO DO WITH E??
             (`(type (zero? ,e ,L)) `bool)
             (`(type ,id) (let ((typed (env-lookupT id type-obs))) (if (equal? null typed) `dyn typed))))))
-            
 
+
+
+
+;--------------------OTHER FUNCTIONS THAT I NO LONGER USE BUT DON'T WANT TO THROW AWAY--------------------------
+
+
+(define env-lookup-id               ;possibly unstable...shouldn't have to use, don't currently
+  (lambda (x env)
+    (let ((info (assoc x env))) 
+      (if info (car (cdr info)) (error "id- unbound variable" x)))))
+
+
+
+
+
+;--------------------TESTS--------------------------------------------------------------------------------------
 
 ;(evals '((lambda (d d6) (zero? d L)) 
 ;           9 
 ;           L))
 (evals '((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L)) 
-          #t 
-          L))
+         #t 
+         L))
 (evals '(((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L)) 
           #t 
           L)
