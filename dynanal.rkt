@@ -8,7 +8,7 @@
 (define type-obs
   '())
 (define coverage
-  '())
+  '(0 0))
 ;Performs dynamic analysis and prints out results
 (define evals
   (lambda (exp)
@@ -16,9 +16,14 @@
     (display exp)
     (display "\nEvaluation: ")
     (display (evalRec exp '()))
-    (display "\nCoverage: ")
-    (display (calc-cov))
-    (display "%")
+    (if (equal? '(0) (cdr coverage))  
+        (display "\nCoverage: All expressions evaluated. ") 
+        (begin
+          (display "\nCoverage: At least ")
+          (display  (cdr coverage))
+          (display " of at least ")
+          (display (car coverage))
+          (display " expressions were not evaluated. ")))
     (display "\nType Observations: ")
     (display type-obs)
     (display "\nTypes Inserted: ")
@@ -29,55 +34,57 @@
     (display (typecheck '() (insert-types exp)))
     (display "\n")
     (display "\n")
-    (set! coverage '())))
+    (set! coverage '(0 0))))
 
-(define calc-cov
-  (lambda ()
-    (if (null? coverage) 0
-      (/ (round (* 1000.0 (/ (foldl + 0 coverage) (length coverage)))) 10))))
 
 ;Evaluates expression and records types found
-;FIX COVERAGE ALGORITHM!!
+
+(define addcov
+  (lambda ()    
+    (set! coverage (cons (+ 1 (car coverage)) (cdr coverage))))) 
+(define subcov
+  (lambda ()
+    (set! coverage (cons (car coverage) (+ 1 (cadr coverage))))))
 (define evalRec
   (lambda (exp env)
     (pmatch exp
-            (`,num (guard (number? num)) (set! coverage `(1 . ,coverage)) num)
-            (`,bool (guard (boolean? bool)) (set! coverage `(1 . ,coverage)) bool)
-            (`(,op ,e ,l) (guard (member op '(inc dec zero?)))
-                          (set! coverage `(1 . ,coverage)) 
+            (`,num (guard (number? num)) (addcov) num)
+            (`,bool (guard (boolean? bool)) (addcov) bool)
+            (`(,op ,e ,l) (guard (member op '(inc dec zero?)))                         
                           (let ((nexp (evalRec e env)))
                             (cond
                               ((not (number? nexp)) (error "expression not number, problem is " l))
                               ((eq? 'inc op) (+ 1 nexp))
                               ((eq? 'dec op) (- nexp 1))
                               ((eq? 'zero? op) (zero? nexp)))))
-            (`(if ,t ,c ,a ,l) (set! coverage `(,(/ 2 3) . ,coverage)) (let ((texp (evalRec t env)))
-                                 (if  (boolean? texp)
-                                      (if texp
-                                          (evalRec c env)
-                                          (evalRec a env))
-                                      (error "test not boolean, problem is: " l))))
+            (`(if ,t ,c ,a ,l)(subcov) (let ((texp (evalRec t env)))
+                                         
+                                         (if  (boolean? texp)
+                                              (if texp
+                                                  (evalRec c env)
+                                                  (evalRec a env))
+                                              (error "test not boolean, problem is: " l))))
             (`(lambda (,x ,id : ,T) ,e)
-             (set! coverage `(1 . ,coverage))
+             (addcov)
              (set! type-obs (extend-Trec id T type-obs))
              `(closure ,x ,id ,e ,env));)
             
             (`(lambda (,x ,id) ,e)
-             (set! coverage `(1 . ,coverage))
+             (addcov)
              `(closure ,x ,id ,e ,env))
-            (`(,e1 ,e2 ,l) (set! coverage `(1 . ,coverage)) (let* ([v1 (evalRec e1 env)] [v2 (evalRec e2 env)])
-                             (pmatch v1                                    
-                                     (`(closure ,x ,id ,e11 ,env11)
-                                      (set! type-obs (extend-Trec id (type v2) type-obs))                                               
-                                      (evalRec e11 (extend-env x id v2 env11))))))    
+            (`(,e1 ,e2 ,l)             
+             (let* ([v1 (evalRec e1 env)] [v2 (evalRec e2 env)])
+               (pmatch v1                                    
+                       (`(closure ,x ,id ,e11 ,env11)
+                        (set! type-obs (extend-Trec id (type v2) type-obs))
+                        (evalRec e11 (extend-env x id v2 env11))))))    
             (`(,e : ,T ,l)
-             (set! coverage `(1 . ,coverage))
+             (addcov)
              `(cast ,l ,e ,T))
-            (`(cast ,l ,e ,T)  ;WHAT DO I DO WITH CASTS???
-             (set! coverage `(1 . ,coverage))
+            (`(cast ,l ,e ,T)  ;WHAT DO I DO WITH CASTS???             
              (set! type-obs (extend-Trec (gensym) T type-obs))
              (evalRec e env))           
-            (`,x (guard (symbol? x)) (set! coverage `(1 . ,coverage)) (let ((ans (env-lookup x env))) ans))
+            (`,x (guard (symbol? x)) (addcov)  (let ((ans (env-lookup x env))) ans))
             (`,else (error "Invalid input"))))) 
 
 
