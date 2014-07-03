@@ -7,8 +7,9 @@
 ;Original type observation global list
 (define type-obs
   '())
-(define coverage
-  '(0 0))
+;Original coverage stack
+(define cov
+  '())
 ;Performs dynamic analysis and prints out results
 (define evals
   (lambda (exp)
@@ -16,14 +17,9 @@
     (display exp)
     (display "\nEvaluation: ")
     (display (evalRec exp '()))
-    (if (equal? '(0) (cdr coverage))  
-        (display "\nCoverage: All expressions evaluated. ") 
-        (begin
-          (display "\nCoverage: At least ")
-          (display  (cdr coverage))
-          (display " of at least ")
-          (display (car coverage))
-          (display " expressions were not evaluated. ")))
+    (display "\nCoverage: ")
+    (display (cov-pc))
+    (display "%")
     (display "\nType Observations: ")
     (display type-obs)
     (display "\nTypes Inserted: ")
@@ -33,58 +29,85 @@
     (display "\nCheck with new types: ")
     (display (typecheck '() (insert-types exp)))
     (display "\n")
-    (display "\n")
-    (set! coverage '(0 0))))
+    (display "\n")    
+    (set! cov '())))
+
+
+;Calculates coverage percent
+(define cov-pc
+  (lambda ()
+    (let ((dec (calc-cov))) 
+      (if (null? dec) 0
+          (/ (round (* 10000.0 dec)) 100)))))
+
+;Calculates coverage
+;pop and push car, it is the number of sub expressions.
+;pop, push, recur on next "car" subexpressions
+;if stack empty, it is because it is missing 0's from a true if statement.
+          ;I haven't proven that that works, but I can't seem to disprove it, so I think it does.
+(define calc-cov
+  (lambda ()    
+    (if (null? cov) 0
+        (let ((front (car cov)))
+          (set! cov (cdr cov))
+          (cond
+            [(eq? '3 front) (+ (* 1/3 (calc-cov)) (* 1/3 (calc-cov)) (* 1/3 (calc-cov)))]
+            [(eq? '1 front) (calc-cov)]
+            [(eq? '0 front) 0]
+            [(eq? 'e front) 1.0])))))
+
+
+
+;Adds coverage info
+(define cset
+  (lambda (val)
+    (set! cov (append cov `(,val)))))
 
 
 ;Evaluates expression and records types found
-
-(define addcov
-  (lambda ()    
-    (set! coverage (cons (+ 1 (car coverage)) (cdr coverage))))) 
-(define subcov
-  (lambda ()
-    (set! coverage (cons (car coverage) (+ 1 (cadr coverage))))))
 (define evalRec
   (lambda (exp env)
     (pmatch exp
-            (`,num (guard (number? num)) (addcov) num)
-            (`,bool (guard (boolean? bool)) (addcov) bool)
-            (`(,op ,e ,l) (guard (member op '(inc dec zero?)))                         
+            (`,num (guard (number? num)) (cset 'e) num)
+            (`,bool (guard (boolean? bool)) (cset 'e) bool)
+            (`(,op ,e ,l) (guard (member op '(inc dec zero?)))
+                          (cset '1)
                           (let ((nexp (evalRec e env)))
                             (cond
                               ((not (number? nexp)) (error "expression not number, problem is " l))
                               ((eq? 'inc op) (+ 1 nexp))
                               ((eq? 'dec op) (- nexp 1))
                               ((eq? 'zero? op) (zero? nexp)))))
-            (`(if ,t ,c ,a ,l)(subcov) (let ((texp (evalRec t env)))
-                                         
-                                         (if  (boolean? texp)
-                                              (if texp
-                                                  (evalRec c env)
-                                                  (evalRec a env))
-                                              (error "test not boolean, problem is: " l))))
+            (`(if ,t ,c ,a ,l) (cset '3) (cset '1) (let ((texp (evalRec t env)))                                      
+                                                              (if  (boolean? texp)
+                                                                    (if texp
+                                                                        (begin (cset '1)(evalRec c env))
+                                                                        (begin (cset '0)(evalRec a env)))
+                                                                    (error "test not boolean, problem is: " l))))
             (`(lambda (,x ,id : ,T) ,e)
-             (addcov)
+             (cset 'e)
              (set! type-obs (extend-Trec id T type-obs))
              `(closure ,x ,id ,e ,env));)
             
             (`(lambda (,x ,id) ,e)
-             (addcov)
+             (cset 'e)
              `(closure ,x ,id ,e ,env))
             (`(,e1 ,e2 ,l)             
-             (let* ([v1 (evalRec e1 env)] [v2 (evalRec e2 env)])
-               (pmatch v1                                    
-                       (`(closure ,x ,id ,e11 ,env11)
-                        (set! type-obs (extend-Trec id (type v2) type-obs))
-                        (evalRec e11 (extend-env x id v2 env11))))))    
+             (cset '3)(cset '1)
+             (let ([v1 (evalRec e1 env)]) (cset '1) (let ([v2 (evalRec e2 env)])
+                                                      (pmatch v1                                    
+                                                              (`(closure ,x ,id ,e11 ,env11)
+                                                               (set! type-obs (extend-Trec id (type v2) type-obs))
+                                                               (cset '1)
+                                                               (evalRec e11 (extend-env x id v2 env11)))))))    
             (`(,e : ,T ,l)
-             (addcov)
+             (cset 'e)
              `(cast ,l ,e ,T))
             (`(cast ,l ,e ,T)  ;WHAT DO I DO WITH CASTS???             
              (set! type-obs (extend-Trec (gensym) T type-obs))
+             (cset '1)
              (evalRec e env))           
-            (`,x (guard (symbol? x)) (addcov)  (let ((ans (env-lookup x env))) ans))
+            (`,x (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
             (`,else (error "Invalid input"))))) 
 
 
@@ -119,7 +142,8 @@
             (`(inc ,x ,L) `int)
             (`(dec ,x ,L) `int)
             (`(zero? ,x ,L) `bool)
-            (`(closure ,x ,id ,e ,env) `(-> (type ,id) (type ,e))))))
+            (`(closure ,x ,id ,e ,env) `(-> (type ,id) (type ,e)))
+            (`(cast ,l ,e ,T) `,T)))) 
 
 ;Inserts types from type-obs into expression
 (define insert-types
@@ -251,6 +275,25 @@
     (let ((info (assoc x env))) 
       (if info (car (cdr info)) (error "id- unbound variable" x)))))
 
+;old coverage functions
+(define coverage
+  '(0 0))
+(define addcov
+  (lambda ()    
+    (set! coverage (cons (+ 1 (car coverage)) (cdr coverage))))) 
+(define subcov
+  (lambda ()
+    (set! coverage (cons (car coverage) (+ 1 (cadr coverage))))))
+
+;OLD COVERAGE PRINTING
+;    (if (equal? '(0) (cdr coverage))  
+;        (display "\nCoverage: All expressions evaluated. ") 
+;        (begin
+;          (display "\nCoverage: At least ")
+;          (display  (cdr coverage))
+;          (display " of at least ")
+;          (display (car coverage))
+;          (display " expressions were not evaluated. ")))
 
 
 
@@ -281,6 +324,7 @@
           L)
          L))
 ;(evals '(if #t #f 7 L))
+(evals '(if #t ((lambda (b b7) (if b 7 8 L)) #t L) 9 L)) 
 (evals '(lambda (m m12) (m 3 L)))
 (evals '((lambda (g g12) ((lambda (h h12) ((lambda (i i12) (if i g h L)) #t L)) 4 L)) 9 L))
 (evals '((lambda (j j12) (j 3 L)) (lambda (q q12) (inc q L)) L))
