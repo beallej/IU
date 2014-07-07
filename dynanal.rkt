@@ -52,6 +52,7 @@
           (set! cov (cdr cov))
           (cond
             [(eq? '3 front) (+ (* 1/3 (calc-cov)) (* 1/3 (calc-cov)) (* 1/3 (calc-cov)))]
+            [(eq? '2 front) (+ (* 1/3 (calc-cov)) (* 1/3 (calc-cov)))]
             [(eq? '1 front) (calc-cov)]
             [(eq? '0 front) 0]
             [(eq? 'e front) 1.0])))))
@@ -78,11 +79,11 @@
                               ((eq? 'inc op) (+ 1 nexp))
                               ((eq? 'dec op) (- nexp 1))
                               ((eq? 'zero? op) (zero? nexp)))))
-            (`(if ,t ,c ,a ,l) (cset '3) (cset '1) (let ((texp (evalRec t env)))                                      
+            (`(if ,t ,c ,a ,l) (cset '2) (cset '1) (let ((texp (evalRec t env)))                                      
                                                               (if  (boolean? texp)
                                                                     (if texp
                                                                         (begin (cset '1)(evalRec c env))
-                                                                        (begin (cset '0)(evalRec a env)))
+                                                                        (begin (cset '1)(evalRec a env)))
                                                                     (error "test not boolean, problem is: " l))))
             (`(lambda (,x ,id : ,T) ,e)
              (cset 'e)
@@ -303,27 +304,34 @@
 ;(evals '((lambda (d d6) (zero? d L)) 
 ;           9 
 ;           L))
-(evals '((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L)) 
-         #t 
-         L))
-(evals '(((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L)) 
-          #t 
-          L)
-         7 
-         L))
-(evals '(((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L)) 
-          ((lambda (d d6) (zero? d L)) 
-           9 
-           L) 
-          L) 7 L))
-(evals '((lambda (b b4) (b 7 L)) 
-         ((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L )) 
-          ((lambda (d d6) (zero? d L)) 
-           9 
-           L) 
-          L)
-         L))
+
+
+;(evals '((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L)) 
+;         #t 
+;         L))
+;(evals '(((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L)) 
+;          #t 
+;          L)
+;         7 
+;         L))
+;(evals '(((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L)) 
+;          ((lambda (d d6) (zero? d L)) 
+;           9 
+;           L) 
+;          L) 7 L))
+;(evals '((lambda (b b4) (b 7 L)) 
+;         ((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L )) 
+;          ((lambda (d d6) (zero? d L)) 
+;           9 
+;           L) 
+;          L)
+;         L))
+
+
+
 ;(evals '(if #t #f 7 L))
+(evals '((lambda (x xid) x) (if #f 6 7 L) L))
+(evals '((lambda (x xid) x) (if #t 6 7 L) L))
 (evals '(if #t ((lambda (b b7) (if b 7 8 L)) #t L) 9 L)) 
 (evals '(lambda (m m12) (m 3 L)))
 (evals '((lambda (g g12) ((lambda (h h12) ((lambda (i i12) (if i g h L)) #t L)) 4 L)) 9 L))
