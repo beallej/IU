@@ -2,6 +2,7 @@
 (require  "pmatch.rkt")
 (require racket/include)
 (require "tcheck_modified.rkt")
+(require test-engine/racket-tests)
 
 
 ;Original type observation global list
@@ -43,8 +44,7 @@
 ;Calculates coverage
 ;pop and push car, it is the number of sub expressions.
 ;pop, push, recur on next "car" subexpressions
-;if stack empty, it is because it is missing 0's from a true if statement.
-          ;I haven't proven that that works, but I can't seem to disprove it, so I think it does.
+;if stack empty, it is because it is missing 0's from a true if statement.          
 (define calc-cov
   (lambda ()    
     (if (null? cov) 0
@@ -98,16 +98,28 @@
              (let ([v1 (evalRec e1 env)]) (cset '1) (let ([v2 (evalRec e2 env)])
                                                       (pmatch v1                                    
                                                               (`(closure ,x ,id ,e11 ,env11)
-                                                               (set! type-obs (extend-Trec id (type v2) type-obs))
+                                                               (pmatch e2
+                                                                       (`(,e3 : ,T3 ,l3) (let ((type2 (resolve-type (type v2)))) 
+                                                                                           (if (consistent? type2 T3) 
+                                                                                               (set! type-obs (extend-Trec id (meet type2 T3) type-obs))
+                                                                                               (error "Bad cast," e3  'is  type2  'not  T3 'blame l3)))) 
+                                                                       (`,other (set! type-obs (extend-Trec id (type v2) type-obs))))
                                                                (cset '1)
-                                                               (evalRec e11 (extend-env x id v2 env11)))))))    
+                                                               (evalRec e11 (extend-env x id v2 env11)))
+;                                                              (`(cast ,l (closure ,x ,id ,e11 ,env11) ,T)
+;                                                               (set! type-obs (extend-Trec id (type v2) type-obs))
+;                                                               (cset '1)
+;                                                               (evalRec e11 (extend-env x id v2 env11)))
+                                                              ))))    
             (`(,e : ,T ,l)
-             (cset 'e)
-             `(cast ,l ,e ,T))
-            (`(cast ,l ,e ,T)  ;WHAT DO I DO WITH CASTS???             
-             (set! type-obs (extend-Trec (gensym) T type-obs))
              (cset '1)
-             (evalRec e env))           
+             (evalRec e env))
+             ;`(cast ,l ,(evalRec e env) ,T))
+;            (`(cast ,l ,e ,T)  ;WHAT DO I DO WITH CASTS???             
+;             (set! type-obs (extend-Trec (gensym) T type-obs))
+;             l;(cset '1)
+;             (cset 'e)
+;             (evalRec e env))           
             (`,x (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
             (`,else (error "Invalid input"))))) 
 
@@ -263,7 +275,7 @@
             (`(-> ,t1 ,t2) `(-> ,(resolve-type t1) ,(resolve-type t2)))
             (`(type (,op ,e ,L)) (guard (member op '(inc dec))) `int) ;WHAT TO DO WITH E??
             (`(type (zero? ,e ,L)) `bool)
-            (`(type ,id) (let ((typed (env-lookupT id type-obs))) (if (equal? null typed) `dyn typed))))))
+            (`(type ,id) (let ((typed (env-lookupT id type-obs))) (if (equal? `null typed) `dyn typed))))))
 
 
 
@@ -301,35 +313,39 @@
 
 ;--------------------TESTS--------------------------------------------------------------------------------------
 
+;(evals '((lambda (g g123) ((lambda (x x123) g) (x x L) L) (lambda (x x123) (g (x x L) L)) L) ((lambda (a a123) ((lambda (b b123) (if (zero? a) b ( 
 ;(evals '((lambda (d d6) (zero? d L)) 
 ;           9 
 ;           L))
+;(evals '(lambda (r r123) ((lambda (o o123) ((lambda (p p123) (if (zero? o L) p (r (r (o ((p (inc p L) L) (dec o L)) L) L) L) L)) 4 L)) 3 L)))
+(evals '((lambda (z z99) (zero? z L)) (7 : int M) N))
+(check-error (evals '((lambda (z z99) (zero? z L)) (7 : bool M) N)))
 
-
-;(evals '((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L)) 
-;         #t 
-;         L))
-;(evals '(((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L)) 
-;          #t 
-;          L)
-;         7 
-;         L))
-;(evals '(((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L)) 
-;          ((lambda (d d6) (zero? d L)) 
-;           9 
-;           L) 
-;          L) 7 L))
-;(evals '((lambda (b b4) (b 7 L)) 
-;         ((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L )) 
-;          ((lambda (d d6) (zero? d L)) 
-;           9 
-;           L) 
-;          L)
-;         L))
+(evals '((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L)) 
+         #t 
+         L))
+(evals '(((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L)) 
+          #t 
+          L)
+         7 
+         L))
+(evals '(((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L)) 
+          ((lambda (d d6) (zero? d L)) 
+           9 
+           L) 
+          L) 7 L))
+(evals '((lambda (b b4) (b 7 L)) 
+         ((lambda (c c5) (if c (lambda (v v7) (dec v L)) (lambda (w w8) (inc w L)) L )) 
+          ((lambda (d d6) (zero? d L)) 
+           9 
+           L) 
+          L)
+         L))
 
 
 
 ;(evals '(if #t #f 7 L))
+(evals '((lambda (x x111) ((lambda (y y111) (y x L)) ((lambda (z z111) (inc (inc z L) L)) : (-> int int) L) L)) 4 L))
 (evals '((lambda (x xid) x) (if #f 6 7 L) L))
 (evals '((lambda (x xid) x) (if #t 6 7 L) L))
 (evals '(if #t ((lambda (b b7) (if b 7 8 L)) #t L) 9 L)) 

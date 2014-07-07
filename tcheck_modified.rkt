@@ -1,6 +1,8 @@
 #lang racket
 (require "pmatch.rkt")
 (provide typecheck)
+(provide consistent?)
+(provide meet)
 (define consistent?
   (lambda (FT1 FT2)
    
@@ -10,7 +12,7 @@
             (`(int int) #t)
             (`(bool bool) #t)
             (`((-> ,FT11 ,FT12) (-> ,FT21 ,FT22)) (and (consistent? FT12 FT22) (consistent? FT11 FT21)))
-            (`other #f))))
+            (`,other #f))))
 (define meet
   (lambda (TT1 TT2) 
     (pmatch `(,TT1 ,TT2)
@@ -114,10 +116,10 @@
              (pmatch `,(typecheck `((,x ,id ,T1) . ,env) e1)
                      (`(,new-e ,ret-T) `((lambda (,x ,id : ,T1) ,new-e)(-> ,T1 ,ret-T)))))
             (`(,e1 : ,T ,l)
-             (pmatch `(typecheck env e1)
+             (pmatch `,(typecheck env e1)
                      (`(,new-e ,e-T)
                       (cond
-                        ((consistent? e-T T) `(,(mk-cast l new-e e-T T)))
+                        ((consistent? e-T T) `(,(mk-cast l new-e e-T T) ,T))
                         (else (error 'typecheck "cast between inconsistent types"))))))
             
             (`(,e1 ,e2 ,l)
