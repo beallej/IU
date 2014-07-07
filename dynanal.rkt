@@ -80,11 +80,11 @@
                               ((eq? 'dec op) (- nexp 1))
                               ((eq? 'zero? op) (zero? nexp)))))
             (`(if ,t ,c ,a ,l) (cset '2) (cset '1) (let ((texp (evalRec t env)))                                      
-                                                              (if  (boolean? texp)
-                                                                    (if texp
-                                                                        (begin (cset '1)(evalRec c env))
-                                                                        (begin (cset '1)(evalRec a env)))
-                                                                    (error "test not boolean, problem is: " l))))
+                                                     (if  (boolean? texp)
+                                                          (if texp
+                                                              (begin (cset '1)(evalRec c env))
+                                                              (begin (cset '1)(evalRec a env)))
+                                                          (error "test not boolean, problem is: " l))))
             (`(lambda (,x ,id : ,T) ,e)
              (cset 'e)
              (set! type-obs (extend-Trec id T type-obs))
@@ -106,20 +106,21 @@
                                                                        (`,other (set! type-obs (extend-Trec id (type v2) type-obs))))
                                                                (cset '1)
                                                                (evalRec e11 (extend-env x id v2 env11)))
-;                                                              (`(cast ,l (closure ,x ,id ,e11 ,env11) ,T)
-;                                                               (set! type-obs (extend-Trec id (type v2) type-obs))
-;                                                               (cset '1)
-;                                                               (evalRec e11 (extend-env x id v2 env11)))
+                                                              (`,other (error "what are you even doing here (bad application): " l))
+                                                              ;                                                              (`(cast ,l (closure ,x ,id ,e11 ,env11) ,T)
+                                                              ;                                                               (set! type-obs (extend-Trec id (type v2) type-obs))
+                                                              ;                                                               (cset '1)
+                                                              ;                                                               (evalRec e11 (extend-env x id v2 env11)))
                                                               ))))    
             (`(,e : ,T ,l)
              (cset '1)
              (evalRec e env))
-             ;`(cast ,l ,(evalRec e env) ,T))
-;            (`(cast ,l ,e ,T)  ;WHAT DO I DO WITH CASTS???             
-;             (set! type-obs (extend-Trec (gensym) T type-obs))
-;             l;(cset '1)
-;             (cset 'e)
-;             (evalRec e env))           
+            ;`(cast ,l ,(evalRec e env) ,T))
+            ;            (`(cast ,l ,e ,T)  ;WHAT DO I DO WITH CASTS???             
+            ;             (set! type-obs (extend-Trec (gensym) T type-obs))
+            ;             l;(cset '1)
+            ;             (cset 'e)
+            ;             (evalRec e env))           
             (`,x (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
             (`,else (error "Invalid input"))))) 
 
@@ -318,6 +319,8 @@
 ;           9 
 ;           L))
 ;(evals '(lambda (r r123) ((lambda (o o123) ((lambda (p p123) (if (zero? o L) p (r (r (o ((p (inc p L) L) (dec o L)) L) L) L) L)) 4 L)) 3 L)))
+
+(evals '(((lambda (f f89) (dec f L)) 9 B) : int M))
 (evals '((lambda (z z99) (zero? z L)) (7 : int M) N))
 (check-error (evals '((lambda (z z99) (zero? z L)) (7 : bool M) N)))
 
@@ -345,6 +348,8 @@
 
 
 ;(evals '(if #t #f 7 L))
+(check-error (evals '((inc 8 L) 9 M)))
+
 (evals '((lambda (x x111) ((lambda (y y111) (y x L)) ((lambda (z z111) (inc (inc z L) L)) : (-> int int) L) L)) 4 L))
 (evals '((lambda (x xid) x) (if #f 6 7 L) L))
 (evals '((lambda (x xid) x) (if #t 6 7 L) L))
