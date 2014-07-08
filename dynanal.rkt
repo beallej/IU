@@ -176,43 +176,7 @@
             (`,x `,x))))
 
 
-;;Evaluates expression and records types found
-;(define evalRec
-;  (lambda (exp env)
-;    (pmatch exp
-;            (`,num (guard (number? num)) num)
-;            (`,bool (guard (boolean? bool)) bool)
-;            (`(,op ,e ,l) (guard (member op '(inc dec zero?)))
-;                          (let ((nexp (evalRec e env)))
-;                            (cond
-;                              ((not (number? nexp)) (error "expression not number, problem is " l))
-;                              ((eq? 'inc op) (+ 1 nexp))
-;                              ((eq? 'dec op) (- nexp 1))
-;                              ((eq? 'zero? op) (zero? nexp)))))
-;            (`(if ,t ,c ,a ,l) (let ((texp (evalRec t env)))
-;                                 (if  (boolean? texp)
-;                                      (if texp
-;                                          (evalRec c env)
-;                                          (evalRec a env))
-;                                      (error "test not boolean, problem is: " l))))
-;            (`(lambda (,x ,id : ,T) ,e)
-;             (set! type-obs (extend-Trec id T type-obs))
-;             `(closure ,x ,id ,e ,env));)
-;            
-;            (`(lambda (,x ,id) ,e)
-;             `(closure ,x ,id ,e ,env))
-;            (`(,e1 ,e2 ,l) (let* ([v1 (evalRec e1 env)] [v2 (evalRec e2 env)])
-;                             (pmatch v1                                    
-;                                     (`(closure ,x ,id ,e11 ,env11)
-;                                      (set! type-obs (extend-Trec id (type v2) type-obs))                                               
-;                                      (evalRec e11 (extend-env x id v2 env11))))))    
-;            (`(,e : ,T ,l)
-;             `(cast ,l ,e ,T))
-;            (`(cast ,l ,e ,T)  ;WHAT DO I DO WITH CASTS???
-;             (set! type-obs (extend-Trec (gensym) T type-obs))
-;             (evalRec e env))           
-;            (`,x (guard (symbol? x)) (let ((ans (env-lookup x env))) ans))
-;            (`,else (error "Invalid input"))))))) 
+
 
 ;Extends regular environment
 (define extend-env
@@ -220,31 +184,13 @@
     `(,(cons x y) . ,env)))    
 
 
-
+;Extends type environment
 (define extend-Trec
   (lambda (x T env)  
     (let ((vals (hash-ref env x '())))
       (if (member T vals) env
           (hash-set env x (cons T vals))))))
 
-;;Extends type environment
-;(define extend-Trec
-;  (lambda (x T env)
-;    (display "adding ")
-;    (display x)
-;    (display " ")
-;    (display T)
-;    (display "\n")
-;    (if (null? env) `(,(cons x (list (list T))))
-;        (if (equal? x (car (car env)))         
-;            `,(cons 
-;               (cons x
-;                     (cond
-;                       [(null? (cdr (car env)))`( ,(cons T (cdr (car env))))]
-;                       [(member T (car (cdr (car env)))) `,(cdr (car env))]
-;                       [else (list (append (list T) (cdr (car env))))]))              
-;               (cdr env))
-;            `,(cons (car env) (extend-Trec x T (cdr env)))))))
 
 ;Looks up what variables correspond to in environment
 (define env-lookup
@@ -259,7 +205,7 @@
     (let ((info (hash-ref env id '())))
     ;(if info
         (cond
-          [(null? info) 'null]
+          [(null? info) 'dyn]
           [(null? (cdr info)) (resolve-type (car info))]
           [else (check-consistency (cdr info) (resolve-type (car info)))]))))
           ;(check-consistency (car (cdr info)) (resolve-type (car (car (cdr info)))))
@@ -311,26 +257,28 @@
   (lambda ()
     (set! coverage (cons (car coverage) (+ 1 (cadr coverage))))))
 
-;OLD COVERAGE PRINTING
-;    (if (equal? '(0) (cdr coverage))  
-;        (display "\nCoverage: All expressions evaluated. ") 
-;        (begin
-;          (display "\nCoverage: At least ")
-;          (display  (cdr coverage))
-;          (display " of at least ")
-;          (display (car coverage))
-;          (display " expressions were not evaluated. ")))
+
 
 ;--------------------TESTING FUNCTIONS--------------------------------------------------------------------------
 
 (define funapp
   (lambda (fun app)
-    (evals (list fun (unique app) (gensym 'BLAME)))))
+    (evals (list fun (unique app) (gensym 'BLAME_)))))
 (define appli
   (lambda (fun app)
-    (list fun (unique app) (gensym 'BLAME))))
+    (list fun (unique app) (gensym 'BLAME_))))
 ;--------------------TESTS--------------------------------------------------------------------------------------
+(define f02 (unique '(lambda (x) (if x (lambda (y) y) (lambda (z) z) L))))
+(funapp (appli f02 #t) #f)
+(check-error (funapp (appli f02 #f) 7))
 
+(define f03 (unique '(lambda (x) (if x (lambda (y : dyn) y) (lambda (z : dyn) z) L))))
+(funapp (appli f03 #t) #f)
+(check-error (funapp (appli f03 #f) 7))
+
+(define f04 (unique '(lambda (x) (if x (lambda (y : dyn) y) (lambda (z : dyn) z) L))))
+(funapp (appli f04 #t) '(#f : dyn M))
+(check-error (funapp (appli f04 #f) '(7 : dyn N)))
 (define f01 (unique '(lambda (x) x)))
 (funapp f01 '(lambda (y : dyn) (y : dyn L)))
 (funapp f01 '(lambda (y : dyn) (y : int M)))
@@ -349,31 +297,14 @@
 (define f5 (unique '(lambda (c) (if c (lambda (v) (dec v L)) (lambda (w) (inc w L)) L)))) 
 (funapp f5 #t)
        
-;(define f6 '(((lambda (c) (if c (lambda (v) (dec v L)) (lambda (w) (inc w L)) L)) 
-;          #t 
-;          L)
-;         7 
-;         L))
-;(evals '(((lambda (c) (if c (lambda (v) (dec v L)) (lambda (w) (inc w L)) L)) 
-;          ((lambda (d) (zero? d L)) 
-;           9 
-;           L) 
-;          L) 7 L))
+
 (define f6 (unique '(lambda (b) (b 7 L))))
 (define f7 (unique '(lambda (c) (if c (lambda (v) (dec v L)) (lambda (w) (inc w L)) L ))))
 (define f8 (unique '(lambda (d) (zero? d L))))
 (funapp f6 (appli f7 (appli f8 9)))
-         
-
-
-
 
 (check-error (evals (unique '(if #t #f 7 L))))
 
-  
-  
-  
-  
 (check-error (evals (unique '((inc 8 L) 9 M))))
 
 (define f9 (unique '(lambda (x) ((lambda (y) (y x L)) ((lambda (z) (inc (inc z L) L)) : (-> int int) L) L))))
@@ -386,20 +317,16 @@
 (evals (unique '(lambda (m) (m 3 L))))
 
 (define f15 (unique '(lambda (j) (j 3 L))))
-;(funapp f15 '(lambda (q) (inc q L)))
-;(funapp f15 '(lambda (q) (dec q L)))
+
 (define f12 (unique '(lambda (g) ((lambda (h) ((lambda (i) (if i g h L)) #t L)) 4 L))))
 (funapp f12 9)
 (evals (unique '((lambda (j) (j 3 L)) (lambda (q) (inc q L)) L)))
 (evals (unique '((lambda (j) (j 3 L)) (lambda (q) (dec q L)) L)))
 
+(define f13 (unique '(lambda (x) (if (zero? (inc x D) E) (lambda (y) ((dec y C) : dyn F)) (lambda (z) ((zero? z A) : dyn G)) B))))
+(evals f13)
+(funapp (appli f13 0) 7)
+(funapp (appli f13 -1) 7)
   
-  
-  
-  
-  
-  
-;(evals '((lambda (x) (if x 7 #f L)) #f L))
-;(evals '((lambda (y) (if #t y 7 L)) #t L))
-;(evals '((lambda (y) (if #t y 7 L)) 9 L))
+
 (set! type-obs '())
