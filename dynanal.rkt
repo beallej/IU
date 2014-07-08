@@ -16,7 +16,6 @@
   (lambda (exp)
     (display "Original expression: \n")
     (display exp)
-    ;(set! exp (uniquify exp))
     (display "\n\nEvaluation: \n")
     (display (evalRec exp '()))
     (display "\n\nCoverage: \n")
@@ -129,41 +128,12 @@
                                                                        (`,other (set! type-obs (extend-Trec x (type v2) type-obs))))
                                                                (cset '1)
                                                                (evalRec e11 (extend-env x v2 env11)))
-                                                              (`,other (error "what are you even doing here (bad application): " l))
-                                                              ;                                                              (`(cast ,l (closure ,x ,id ,e11 ,env11) ,T)
-                                                              ;                                                               (set! type-obs (extend-Trec id (type v2) type-obs))
-                                                              ;                                                               (cset '1)
-                                                              ;                                                               (evalRec e11 (extend-env x id v2 env11)))
-                                                              ))))    
+                                                              (`,other (error "what are you even doing here (bad application): " l))))))    
             (`(,e : ,T ,l)
              (cset '1)
-             (evalRec e env))
-            ;`(cast ,l ,(evalRec e env) ,T))
-            ;            (`(cast ,l ,e ,T)  ;WHAT DO I DO WITH CASTS???             
-            ;             (set! type-obs (extend-Trec (gensym) T type-obs))
-            ;             l;(cset '1)
-            ;             (cset 'e)
-            ;             (evalRec e env))           
+             (evalRec e env))   
             (`,x (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
             (`,else (error "Invalid input"))))) 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -317,6 +287,7 @@
             (`(-> ,t1 ,t2) `(-> ,(resolve-type t1) ,(resolve-type t2)))
             (`(type (,op ,e ,L)) (guard (member op '(inc dec))) `int) ;WHAT TO DO WITH E??
             (`(type (zero? ,e ,L)) `bool)
+            (`(type (,e : ,T ,L)) T)
             (`(type ,id) (let ((typed (env-lookupT id type-obs))) (if (equal? `null typed) `dyn typed))))))
 
 
@@ -350,7 +321,7 @@
 ;          (display (car coverage))
 ;          (display " expressions were not evaluated. ")))
 
-
+;--------------------TESTING FUNCTIONS--------------------------------------------------------------------------
 
 (define funapp
   (lambda (fun app)
@@ -360,6 +331,11 @@
     (list fun (unique app) (gensym 'BLAME))))
 ;--------------------TESTS--------------------------------------------------------------------------------------
 
+(define f01 (unique '(lambda (x) x)))
+(funapp f01 '(lambda (y : dyn) (y : dyn L)))
+(funapp f01 '(lambda (y : dyn) (y : int M)))
+(funapp f01 '(lambda (y : int) (y : dyn N)))
+(funapp f01 '(lambda (y : int) (y : int O)))
 
 (define f1 (unique '(lambda (c : dyn) (if c (lambda (v) (dec v L)) (lambda (w) (inc w L)) L))))
 (funapp f1 #t)

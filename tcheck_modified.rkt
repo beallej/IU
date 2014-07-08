@@ -4,8 +4,7 @@
 (provide consistent?)
 (provide meet)
 (define consistent?
-  (lambda (FT1 FT2)
-   
+  (lambda (FT1 FT2)   
     (pmatch `(,FT1 ,FT2)
             (`(,FT1 dyn) #t)
             (`(dyn ,FT2) #t)
