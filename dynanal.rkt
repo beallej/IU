@@ -7,7 +7,7 @@
 
 ;Original type observation global list
 (define type-obs
-  '())
+  (hash))
 ;Original coverage stack
 (define cov
   '())
@@ -249,19 +249,32 @@
   (lambda (x y env)
     `(,(cons x y) . ,env)))    
 
-;Extends type environment
+
+
 (define extend-Trec
-  (lambda (x T env)    
-    (if (null? env) `(,(cons x (list (list T))))
-        (if (equal? x (car (car env)))         
-            `,(cons 
-               (cons x
-                     (cond
-                       [(null? (cdr (car env)))`( ,(cons T (cdr (car env))))]
-                       [(member T (car (cdr (car env)))) `,(cdr (car env))]
-                       [else (list (append (list T) (cdr (car env))))]))              
-               (cdr env))
-            `,(cons (car env) (extend-Trec x T (cdr env)))))))
+  (lambda (x T env)  
+    (let ((vals (hash-ref env x '())))
+      (if (member T vals) env
+          (hash-set env x (cons T vals))))))
+
+;;Extends type environment
+;(define extend-Trec
+;  (lambda (x T env)
+;    (display "adding ")
+;    (display x)
+;    (display " ")
+;    (display T)
+;    (display "\n")
+;    (if (null? env) `(,(cons x (list (list T))))
+;        (if (equal? x (car (car env)))         
+;            `,(cons 
+;               (cons x
+;                     (cond
+;                       [(null? (cdr (car env)))`( ,(cons T (cdr (car env))))]
+;                       [(member T (car (cdr (car env)))) `,(cdr (car env))]
+;                       [else (list (append (list T) (cdr (car env))))]))              
+;               (cdr env))
+;            `,(cons (car env) (extend-Trec x T (cdr env)))))))
 
 ;Looks up what variables correspond to in environment
 (define env-lookup
@@ -272,10 +285,15 @@
 ;Looks up what ids correspond to in type 
 (define env-lookupT
   (lambda (id env)
-    (let ((info (assoc id env)))
-      (if info
-          (check-consistency (car (cdr info)) (resolve-type (car (car (cdr info)))))
-          'null))))
+    ;(let ((info (assoc id env)))
+    (let ((info (hash-ref env id '())))
+    ;(if info
+        (cond
+          [(null? info) 'null]
+          [(null? (cdr info)) (resolve-type (car info))]
+          [else (check-consistency (cdr info) (resolve-type (car info)))]))))
+          ;(check-consistency (car (cdr info)) (resolve-type (car (car (cdr info)))))
+          ;'null))))
 
 ;Checks to see if all types in type env for a given id agree-- they are all the same or some are dyn
 (define check-consistency
@@ -286,6 +304,7 @@
             [(equal? type1 'dyn) (check-consistency (cdr types) type2)]
             [(equal? type2 'dyn) (check-consistency (cdr types) type1)]
             [(equal? type1 type2) (check-consistency (cdr types) type1)]
+            [(consistent? type1 type2) (check-consistency (cdr types) (meet type1 type2))]
             [else (error "types inconsistent" type1"   " (car types))])))))
 
 ;returns the type of something, incase it couldn't be done before
@@ -294,6 +313,7 @@
     (pmatch tv
             (`int `int)
             (`bool `bool)
+            (`dyn `dyn)
             (`(-> ,t1 ,t2) `(-> ,(resolve-type t1) ,(resolve-type t2)))
             (`(type (,op ,e ,L)) (guard (member op '(inc dec))) `int) ;WHAT TO DO WITH E??
             (`(type (zero? ,e ,L)) `bool)
@@ -341,7 +361,7 @@
 ;--------------------TESTS--------------------------------------------------------------------------------------
 
 
-(define f1 (unique '(lambda (c) (if c (lambda (v) (dec v L)) (lambda (w) (inc w L)) L))))
+(define f1 (unique '(lambda (c : dyn) (if c (lambda (v) (dec v L)) (lambda (w) (inc w L)) L))))
 (funapp f1 #t)
 (funapp f1 #f)
 (define f2 (unique '(((lambda (f) (dec f L)) 9 B) : int M)))
@@ -372,23 +392,31 @@
 
 
 
-;(evals '(if #t #f 7 L))
+(check-error (evals (unique '(if #t #f 7 L))))
+
   
   
   
   
-;(check-error (evals '((inc 8 L) 9 M)))
-;
-;(evals '((lambda (x) ((lambda (y) (y x L)) ((lambda (z) (inc (inc z L) L)) : (-> int int) L) L)) 4 L))
-;(evals '((lambda (x) x) (if #f 6 7 L) L))
-;(evals '((lambda (x) x) (if #t 6 7 L) L))
-;(evals '(if #t ((lambda (b) (if b 7 8 L)) #t L) 9 L)) 
-;(evals '(lambda (m) (m 3 L)))
-;(evals '((lambda (g) ((lambda (h) ((lambda (i) (if i g h L)) #t L)) 4 L)) 9 L))
-;(evals '((lambda (j) (j 3 L)) (lambda (q) (inc q L)) L))
-;(evals '((lambda (j) (j 3 L)) (lambda (q) (dec q L)) L))
-;(evals '((lambda (x) (inc x L)) 3 L))
-;(evals '((lambda (x) (if x 7 8 L)) #t L))
+(check-error (evals (unique '((inc 8 L) 9 M))))
+
+(define f9 (unique '(lambda (x) ((lambda (y) (y x L)) ((lambda (z) (inc (inc z L) L)) : (-> int int) L) L))))
+(funapp f9 4)
+
+(define f10 (unique '(lambda (x) x))) 
+(funapp f10 (unique '(if #t 6 7 L)))
+(define f11 (unique '(lambda (b) (if b 7 8 L))))
+(evals (unique `(if #t ,(appli f11 #t) 9 L)))
+(evals (unique '(lambda (m) (m 3 L))))
+
+(define f15 (unique '(lambda (j) (j 3 L))))
+;(funapp f15 '(lambda (q) (inc q L)))
+;(funapp f15 '(lambda (q) (dec q L)))
+(define f12 (unique '(lambda (g) ((lambda (h) ((lambda (i) (if i g h L)) #t L)) 4 L))))
+(funapp f12 9)
+(evals (unique '((lambda (j) (j 3 L)) (lambda (q) (inc q L)) L)))
+(evals (unique '((lambda (j) (j 3 L)) (lambda (q) (dec q L)) L)))
+
   
   
   

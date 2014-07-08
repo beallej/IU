@@ -92,6 +92,6 @@
                      (`((,new-e2 ,T2) (,new-e1 (-> ,T11 ,T12)))
                       (cond
                         ((consistent? T2 T11) `((call ,new-e1 ,(mk-cast l new-e2 T2 T11)) ,T12))
-                        (else (error 'typecheck "arg/param mismatch"))))
+                        (else (error 'typecheck "arg/param mismatch" T2 T11))))
                      (`((,new-e2 ,T2) (,new-e1 ,other-T))                   
                       (error 'typecheck "call to non-function")))))))
