@@ -51,9 +51,9 @@
   (lambda (l e T1 T2)
     (cond ((equal? T1 T2) e)
           (else `(cast ,l ,e : ,T1 -> ,T2)))))
-          
-            
-            
+
+
+
 (define typecheck
   (lambda (env e)    
     (pmatch e
@@ -65,13 +65,17 @@
                                    (`,other (error 'typecheck "primitive operator"))))
             (`(if ,cnd ,thn ,els ,l)
              (pmatch `(,(typecheck env cnd) ,(typecheck env thn) ,(typecheck env els))
-                     (`((,new-cnd ,cnd-T) (,new-thn ,thn-T) (,new-els ,els-T)) (cond
-                                                                                 ((and (consistent? thn-T els-T) (consistent? cnd-T `bool))
-                                                                                  (let ((if-T (meet thn-T els-T)))                                                                                    
-                                                                                    `((if ,(mk-cast l new-cnd cnd-T `bool) ,(mk-cast l new-thn thn-T if-T) ,(mk-cast l new-els els-T if-T)) ,if-T)))
-                                                                                 ;NOTE: (mk-cast l new-els els-T if-T) WAS ORIGINALLY (mk-cast l new-thn els-T if-T), but i changed that because
-                                                                                 ;i think it was a mistake
-                                                                                 (else (error 'typecheck "ill-typed expression"))))))
+                     (`((,new-cnd ,cnd-T) (,new-thn ,thn-T) (,new-els ,els-T)) 
+                      (cond
+                        ((and (consistent? thn-T els-T) (consistent? cnd-T `bool))
+                         (let ((if-T (meet thn-T els-T)))                                                                                    
+                           `((if ,(mk-cast l new-cnd cnd-T `bool) 
+                                 ,(mk-cast l new-thn thn-T if-T) 
+                                 ,(mk-cast l new-els els-T if-T)) ,if-T)))
+                        ;NOTE: (mk-cast l new-els els-T if-T) WAS ORIGINALLY 
+                        ;(mk-cast l new-thn els-T if-T), but i changed that because
+                        ;i think it was a mistake
+                        (else (error 'typecheck "ill-typed expression"))))))
             (`,x (guard (symbol? x)) `(,x ,(car (cdr (assq x env)))))
             (`(lambda (,x) ,e1) (typecheck env `(lambda (,x : dyn) ,e1)))
             (`(lambda (,x : ,T1) ,e1)
