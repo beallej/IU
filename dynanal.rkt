@@ -14,6 +14,29 @@
 ;Performs dynamic analysis and prints out results
 (define evals
   (lambda (exp)
+    ;        (display "\n\nEvaluation: \n")
+    ;        (let ((tm (current-inexact-milliseconds)))
+    ;          (begin
+    ;            (set! tm (current-inexact-milliseconds))
+    ;            (evalRec exp '())
+    ;            (display (- (current-inexact-milliseconds) tm))
+    ;            (display "\n\nCoverage: \n")
+    ;            (set! tm (current-inexact-milliseconds)) 
+    ;            (cov-pc)
+    ;            (display (- (current-inexact-milliseconds) tm))
+    ;            (display "\n\nTypes Inserted: \n")
+    ;            (set! tm (current-inexact-milliseconds))
+    ;            (insert-types exp)
+    ;            (display (- (current-inexact-milliseconds) tm))
+    ;            (display "\n\nOriginal check: \n")
+    ;            (set! tm (current-inexact-milliseconds))
+    ;            (typecheck '() exp)
+    ;            (display (- (current-inexact-milliseconds) tm))
+    ;            (display "\n\nCheck with new types: \n")
+    ;            (set! tm (current-inexact-milliseconds))
+    ;            (typecheck '() (insert-types exp))
+    ;            (display (- (current-inexact-milliseconds) tm))))
+    
     (display "Original expression: \n")
     (display exp)
     (display "\n\nEvaluation: \n")
@@ -55,7 +78,7 @@
             (`(,e : ,T ,l)              
              `(,(vary e env) : ,T ,l))
             (`,x `,(hash-ref env x (lambda () (error 'type-of "unbound id: ~a not found in ~a" x env)))))))
-    
+
 ;Calculates coverage percent
 (define cov-pc
   (lambda ()
@@ -115,20 +138,21 @@
             (`(lambda (,x) ,e)
              (cset 'e)
              `(closure ,x ,e ,env))
-            (`(,e1 ,e2 ,l)             
-             (cset '3)(cset '1)
-             (let ([v1 (evalRec e1 env)]) (cset '1) (let ([v2 (evalRec e2 env)])
-                                                      (pmatch v1                                    
-                                                              (`(closure ,x ,e11 ,env11)
-                                                               (pmatch e2
-                                                                       (`(,e3 : ,T3 ,l3) (let ((type2 (resolve-type (type v2)))) 
-                                                                                           (if (consistent? type2 T3) 
-                                                                                               (set! type-obs (extend-Trec x (meet type2 T3) type-obs))
-                                                                                               (error "Bad cast," e3  'is  type2  'not  T3 'blame l3)))) 
-                                                                       (`,other (set! type-obs (extend-Trec x (type v2) type-obs))))
-                                                               (cset '1)
-                                                               (evalRec e11 (extend-env x v2 env11)))
-                                                              (`,other (error "what are you even doing here (bad application): " l))))))    
+            (`(,e1 ,e2 ,l)
+             (if (equal? e1 e2) (error "infinite recursion!")
+                 (begin (cset '3)(cset '1)
+                        (let ([v1 (evalRec e1 env)]) (cset '1) (let ([v2 (evalRec e2 env)])
+                                                                 (pmatch v1                                                              
+                                                                         (`(closure ,x ,e11 ,env11)
+                                                                          (pmatch e2
+                                                                                  (`(,e3 : ,T3 ,l3) (let ((type2 (resolve-type (type v2)))) 
+                                                                                                      (if (consistent? type2 T3) 
+                                                                                                          (set! type-obs (extend-Trec x (meet type2 T3) type-obs))
+                                                                                                          (error "Bad cast," e3  'is  type2  'not  T3 'blame l3)))) 
+                                                                                  (`,other (set! type-obs (extend-Trec x (type v2) type-obs))))
+                                                                          (cset '1)
+                                                                          (evalRec e11 (extend-env x v2 env11)))
+                                                                         (`,other (error "what are you even doing here (bad application): " l))))))))    
             (`(,e : ,T ,l)
              (cset '1)
              (evalRec e env))   
@@ -203,13 +227,13 @@
   (lambda (id env)
     ;(let ((info (assoc id env)))
     (let ((info (hash-ref env id '())))
-    ;(if info
-        (cond
-          [(null? info) 'dyn]
-          [(null? (cdr info)) (resolve-type (car info))]
-          [else (check-consistency (cdr info) (resolve-type (car info)))]))))
-          ;(check-consistency (car (cdr info)) (resolve-type (car (car (cdr info)))))
-          ;'null))))
+      ;(if info
+      (cond
+        [(null? info) 'dyn]
+        [(null? (cdr info)) (resolve-type (car info))]
+        [else (check-consistency (cdr info) (resolve-type (car info)))]))))
+;(check-consistency (car (cdr info)) (resolve-type (car (car (cdr info)))))
+;'null))))
 
 ;Checks to see if all types in type env for a given id agree-- they are all the same or some are dyn
 (define check-consistency
@@ -296,7 +320,7 @@
 (check-error (funapp f4fail '(7 : bool M)))
 (define f5 (unique '(lambda (c) (if c (lambda (v) (dec v L)) (lambda (w) (inc w L)) L)))) 
 (funapp f5 #t)
-       
+
 
 (define f6 (unique '(lambda (b) (b 7 L))))
 (define f7 (unique '(lambda (c) (if c (lambda (v) (dec v L)) (lambda (w) (inc w L)) L ))))
@@ -327,6 +351,15 @@
 (evals f13)
 (funapp (appli f13 0) 7)
 (funapp (appli f13 -1) 7)
-  
+
+(evals (unique '(lambda (x) (x x L))))
+(evals (unique '((lambda (x) (x x L)) (lambda (y) 2) M)))
+
+;(evals (unique '(inc (inc  (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc 
+;                                                                         (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc 
+;                                                                                                                                 (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc 0 L)
+;                                                                                                                                                                                                                                                                                                                                                                                                L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L)L) L) L) L) L) L) L) L) L)
+;                                                                                                                                                                                                                                                    L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L)L) L) L) L) L) L) L) L) L) L) L) L) L) L) L)L) L) L)))   
+;
 
 (set! type-obs '())
