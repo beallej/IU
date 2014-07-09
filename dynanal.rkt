@@ -141,18 +141,20 @@
             (`(,e1 ,e2 ,l)
              (if (equal? e1 e2) (error "infinite recursion!")
                  (begin (cset '3)(cset '1)
-                        (let ([v1 (evalRec e1 env)]) (cset '1) (let ([v2 (evalRec e2 env)])
-                                                                 (pmatch v1                                                              
-                                                                         (`(closure ,x ,e11 ,env11)
-                                                                          (pmatch e2
-                                                                                  (`(,e3 : ,T3 ,l3) (let ((type2 (resolve-type (type v2)))) 
-                                                                                                      (if (consistent? type2 T3) 
-                                                                                                          (set! type-obs (extend-Trec x (meet type2 T3) type-obs))
-                                                                                                          (error "Bad cast," e3  'is  type2  'not  T3 'blame l3)))) 
-                                                                                  (`,other (set! type-obs (extend-Trec x (type v2) type-obs))))
-                                                                          (cset '1)
-                                                                          (evalRec e11 (extend-env x v2 env11)))
-                                                                         (`,other (error "what are you even doing here (bad application): " l))))))))    
+                        (let ([v1 (evalRec e1 env)]) (cset '1) 
+                          (let ([v2 (evalRec e2 env)])
+                            (pmatch v1                                                              
+                                    (`(closure ,x ,e11 ,env11)
+                                     (pmatch e2
+                                             (`(,e3 : ,T3 ,l3) 
+                                              (let ((type2 (resolve-type (type v2)))) 
+                                                (if (consistent? type2 T3) 
+                                                    (set! type-obs (extend-Trec x (meet type2 T3) type-obs))
+                                                    (error "Bad cast," e3  'is  type2  'not  T3 'blame l3)))) 
+                                             (`,other (set! type-obs (extend-Trec x (type v2) type-obs))))
+                                     (cset '1)
+                                     (evalRec e11 (extend-env x v2 env11)))
+                                    (`,other (error "what are you even doing here (bad application): " l))))))))    
             (`(,e : ,T ,l)
              (cset '1)
              (evalRec e env))   
@@ -258,7 +260,8 @@
             (`(type (,op ,e ,L)) (guard (member op '(inc dec))) `int) ;WHAT TO DO WITH E??
             (`(type (zero? ,e ,L)) `bool)
             (`(type (,e : ,T ,L)) T)
-            (`(type ,id) (let ((typed (env-lookupT id type-obs))) (if (equal? `null typed) `dyn typed))))))
+            (`(type ,id) 
+             (let ((typed (env-lookupT id type-obs))) (if (equal? `null typed) `dyn typed))))))
 
 
 
