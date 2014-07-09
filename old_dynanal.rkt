@@ -14,7 +14,29 @@
 ;Performs dynamic analysis and prints out results
 (define evals
   (lambda (exp)
-      
+    ;        (display "\n\nEvaluation: \n")
+    ;        (let ((tm (current-inexact-milliseconds)))
+    ;          (begin
+    ;            (set! tm (current-inexact-milliseconds))
+    ;            (evalRec exp '())
+    ;            (display (- (current-inexact-milliseconds) tm))
+    ;            (display "\n\nCoverage: \n")
+    ;            (set! tm (current-inexact-milliseconds)) 
+    ;            (cov-pc)
+    ;            (display (- (current-inexact-milliseconds) tm))
+    ;            (display "\n\nTypes Inserted: \n")
+    ;            (set! tm (current-inexact-milliseconds))
+    ;            (insert-types exp)
+    ;            (display (- (current-inexact-milliseconds) tm))
+    ;            (display "\n\nOriginal check: \n")
+    ;            (set! tm (current-inexact-milliseconds))
+    ;            (typecheck '() exp)
+    ;            (display (- (current-inexact-milliseconds) tm))
+    ;            (display "\n\nCheck with new types: \n")
+    ;            (set! tm (current-inexact-milliseconds))
+    ;            (typecheck '() (insert-types exp))
+    ;            (display (- (current-inexact-milliseconds) tm))))
+    
     (display "Original expression: \n")
     (display exp)
     (display "\n\nEvaluation: \n")
@@ -123,17 +145,19 @@
                           (let ([v2 (evalRec e2 env)])
                             (pmatch v1                                                              
                                     (`(closure ,x ,e11 ,env11)
-;                                     (pmatch e2
-;                                             (`(,e3 : ,T3 ,l3) 
-;                                              (let ((type2 (resolve-type (type v2)))) 
-;                                                (if (consistent? type2 T3) 
-;                                                    (set! type-obs (extend-Trec x (meet type2 T3) type-obs))
-;                                                    (error "Bad cast," e3  'is  type2  'not  T3 'blame l3)))) 
+                                     (pmatch e2
+                                             (`(,e3 : ,T3 ,l3) 
+                                              (let ((type2 (resolve-type (type v2)))) 
+                                                (if (consistent? type2 T3) 
+                                                    (set! type-obs (extend-Trec x (meet type2 T3) type-obs))
+                                                    (error "Bad cast," e3  'is  type2  'not  T3 'blame l3)))) 
                                              (`,other (set! type-obs (extend-Trec x (type v2) type-obs))))
                                      (cset '1)
                                      (evalRec e11 (extend-env x v2 env11)))
                                     (`,other (error "what are you even doing here (bad application): " l))))))))    
-            
+            (`(,e : ,T ,l)
+             (cset '1)
+             (evalRec e env))   
             (`,x (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
             (`,else (error "Invalid input"))))) 
 
@@ -233,13 +257,11 @@
             (`bool `bool)
             (`dyn `dyn)
             (`(-> ,t1 ,t2) `(-> ,(resolve-type t1) ,(resolve-type t2)))
-            
-            
-;            (`(type (,op ,e ,L)) (guard (member op '(inc dec))) `int) ;WHAT TO DO WITH E??
-;            (`(type (zero? ,e ,L)) `bool)
-;            (`(type (,e : ,T ,L)) T)
-;            (`(type ,id) 
-;             (let ((typed (env-lookupT id type-obs))) (if (equal? `null typed) `dyn typed))))))
+            (`(type (,op ,e ,L)) (guard (member op '(inc dec))) `int) ;WHAT TO DO WITH E??
+            (`(type (zero? ,e ,L)) `bool)
+            (`(type (,e : ,T ,L)) T)
+            (`(type ,id) 
+             (let ((typed (env-lookupT id type-obs))) (if (equal? `null typed) `dyn typed))))))
 
 
 
@@ -336,6 +358,11 @@
 (evals (unique '(lambda (x) (x x L))))
 (check-error (evals (unique '((lambda (x) (x x L)) (lambda (y) 2) M))))
 
-
+;(evals (unique '(inc (inc  (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc 
+;                                                                         (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc 
+;                                                                                                                                 (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc 0 L)
+;                                                                                                                                                                                                                                                                                                                                                                                                L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L)L) L) L) L) L) L) L) L) L)
+;                                                                                                                                                                                                                                                    L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L) L)L) L) L) L) L) L) L) L) L) L) L) L) L) L) L)L) L) L)))   
+;
 
 (set! type-obs '())
