@@ -353,7 +353,7 @@
 (funapp (appli f13 -1) 7)
 
 (evals (unique '(lambda (x) (x x L))))
-(evals (unique '((lambda (x) (x x L)) (lambda (y) 2) M)))
+(check-error (evals (unique '((lambda (x) (x x L)) (lambda (y) 2) M))))
 
 ;(evals (unique '(inc (inc  (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc 
 ;                                                                         (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc (inc 
