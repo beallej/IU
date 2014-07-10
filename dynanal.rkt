@@ -118,13 +118,18 @@
                                                               (begin (cset '1)(evalRec a env)))
                                                           (error "test not boolean " ))))
             (`(cast ,L ,e : ,T1 -> ,T2)
+             
              (let ((val (evalRec e env)) (tp (meet-blame T1 T2 L)))
                (pmatch val
-                       (`(closure ,x ,par-T ,e1 ,ret-T ,env1) `(closure ,x ,par-T ,e1 ,(meet ret-T tp) ,env1))
+                       
+                       (`(closure ,x ,par-T ,e1 ,ret-T ,env1) 
+                        (pmatch tp
+                                (`(-> ,T3 ,T4) 
+                                 (let ((new_p (meet par-T T3)) (new_r (meet ret-T T4))) `(closure ,x ,new_p ,e1 ,new_r ,env1)))))
                        (`,other val))))
             
             (`(lambda (,x : ,T) ,e) (evalRec `(,exp (-> ,T dyn)) env))
-            (`((lambda (,x : ,T) ,e)(-> ,T ,ret-T))
+            (`((lambda (,x : ,T) ,e)(-> ,T ,ret-T)) 
              (cset 'e)
              (set! type-obs (extend-Trec x T type-obs))
              `(closure ,x ,T ,e ,ret-T ,env))            
@@ -134,7 +139,7 @@
              (let ([v1 (evalRec e1 env)]) (cset '1) 
                (let ([v2 (evalRec e2 env)])
                  (pmatch v1                                                              
-                         (`(closure ,x ,par-T ,e11 ,ret-T ,env11)
+                         (`(closure ,x ,par-T ,e11 ,ret-T ,env11);                                         
                           (set! type-obs (extend-Trec x (meet par-T (type v2)) type-obs))
                           ;is this meet necessary?
                           (cset '1)
@@ -144,7 +149,7 @@
             (`(,x ,ref) (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
             (`,x (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
             (`(,e ,T) (display "help!!") (evalRec e env))
-            (`,else (display "\n") (display exp) (display "\n")(error "Invalid input"))))) 
+            (`,else (error "Invalid input"))))) 
 
 
 
@@ -281,32 +286,34 @@
   (lambda (fun app)
     (list fun (unique app) (gensym 'BLAME_))))
 ;--------------------TESTS--------------------------------------------------------------------------------------
-(evals (unique '#t))
-(evals (unique '7))
-(evals (unique '(inc 7 L)))
-(evals (unique '(if #t 6 7 L)))
-(evals (unique '(lambda (x) x)))
-(evals (unique '(lambda (x : int) x)))
-(evals (unique '((lambda (x) x) 7 L)))
-(evals (unique '((lambda (x : int) x) 7 L)))
-
-
-(define f02 (unique '(lambda (x) (if x (lambda (y) y) (lambda (z) z) L))))
-(funapp (appli f02 #t) #f)
-(check-error (funapp (appli f02 #f) 7))
-
-(define f03 (unique '(lambda (x) (if x (lambda (y : dyn) y) (lambda (z : dyn) z) L))))
-(funapp (appli f03 #t) #f)
-(check-error (funapp (appli f03 #f) 7))
-
-(define f04 (unique '(lambda (x) (if x (lambda (y : dyn) y) (lambda (z : dyn) z) L))))
-(funapp (appli f04 #t) '(#f : dyn M))
-(check-error (funapp (appli f04 #f) '(7 : dyn N)))
-(define f01 (unique '(lambda (x) x)))
-(funapp f01 '(lambda (y : dyn) (y : dyn L)))
+;(evals (unique '#t))
+;(evals (unique '7))
+;(evals (unique '(inc 7 L)))
+;(evals (unique '(if #t 6 7 L)))
+;(evals (unique '(lambda (x) x)))
+;(evals (unique '(lambda (x : int) x)))
+;(evals (unique '((lambda (x) x) 7 L)))
+;(evals (unique '((lambda (x : int) x) 7 L)))
+;
+;
+;(define f02 (unique '(lambda (x) (if x (lambda (y) y) (lambda (z) z) L))))
+;(funapp (appli f02 #t) #f)
+;(check-error (funapp (appli f02 #f) 7))
+;
+;(define f03 (unique '(lambda (x) (if x (lambda (y : dyn) y) (lambda (z : dyn) z) L))))
+;(funapp (appli f03 #t) #f)
+;(check-error (funapp (appli f03 #f) 7))
+;
+;(define f04 (unique '(lambda (x) (if x (lambda (y : dyn) y) (lambda (z : dyn) z) L))))
+;(funapp (appli f04 #t) '(#f : dyn M))
+;(check-error (funapp (appli f04 #f) '(7 : dyn N)))
+;(define f01 (unique '(lambda (x) x)))
+;(funapp f01 '(lambda (y : dyn) (y : dyn L)))
 ;(funapp f01 '(lambda (y : dyn) (y : int M))) ;What should this return anyway??
-(funapp f01 '(lambda (y : int) (y : dyn N)))
-(funapp f01 '(lambda (y : int) (y : int O)))
+;(funapp f01 '(lambda (y : int) (y : dyn N)))
+;
+;(funapp f01 '(lambda (y : int) (y : int O)))
+;
 
 (define f1 (unique '(lambda (c : dyn) (if c (lambda (v) (dec v L)) (lambda (w) (inc w L)) L))))
 (funapp f1 #t)

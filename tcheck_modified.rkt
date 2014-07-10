@@ -66,8 +66,7 @@
 
 (define typecheck
   (lambda (env e)
-    (display e)
-    (display "\n")
+    
     (pmatch e
             (`,k (guard (constant? k)) `(,k ,(typeof k)))
             (`(,op ,e1 ,l) (guard (operator? op))
@@ -101,9 +100,9 @@
                         (else (error 'typecheck "cast between inconsistent types"))))))
             
             (`(,e1 ,e2 ,l)
+            
              (pmatch `( ,(typecheck env e2) ,(typecheck env e1))
-                     (`((,new-e2 ,T2) (,new-e1 dyn))
-                      (display "a ")
+                     (`((,new-e2 ,T2) (,new-e1 dyn))                      
                       `((call ,(mk-cast l new-e1 `dyn `(-> ,T2 dyn)) ,new-e2) dyn))
                      (`((,new-e2 ,T2) (,new-e1 (-> ,T11 ,T12)))
                       (cond
