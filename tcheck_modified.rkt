@@ -65,7 +65,9 @@
 
 
 (define typecheck
-  (lambda (env e)    
+  (lambda (env e)
+    (display e)
+    (display "\n")
     (pmatch e
             (`,k (guard (constant? k)) `(,k ,(typeof k)))
             (`(,op ,e1 ,l) (guard (operator? op))

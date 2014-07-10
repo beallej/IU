@@ -159,6 +159,7 @@
             (`,bool (guard (boolean? bool)) `bool)            
             (`(closure ,x ,par-T ,e1 ,ret-T ,env1) `(-> ,par-T ,ret-T))
             (`(cast ,l ,v : ,T1 -> dyn) (meet-blame (type v) T1 l))
+            (`(cast ,l ,v : dyn -> ,T2) (meet-blame (type v) T2 l))
             (`(cast ,l ,v : (-> ,T1 ,T2) ->(-> ,T3 ,T4)) (meet-blame (type v) `(-> ,(meet T1 T3) ,(meet T2 T4)) l))))) 
 
 ;Inserts types from type-obs into expression
@@ -303,7 +304,7 @@
 (check-error (funapp (appli f04 #f) '(7 : dyn N)))
 (define f01 (unique '(lambda (x) x)))
 (funapp f01 '(lambda (y : dyn) (y : dyn L)))
-(funapp f01 '(lambda (y : dyn) (y : int M)))
+;(funapp f01 '(lambda (y : dyn) (y : int M))) ;What should this return anyway??
 (funapp f01 '(lambda (y : int) (y : dyn N)))
 (funapp f01 '(lambda (y : int) (y : int O)))
 
