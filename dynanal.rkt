@@ -14,24 +14,29 @@
 ;Performs dynamic analysis and prints out results
 (define evals
   (lambda (exp)
-      
-    (display "Original expression: \n")
-    (display exp)
-    (display "\n\nEvaluation: \n")
-    (display (evalRec exp '()))
-    (display "\n\nCoverage: \n")
-    (display (cov-pc))
-    (display "%")
-    (display "\n\nType Observations: \n")
-    (display type-obs)
-    (display "\n\nTypes Inserted: \n")
-    (display (insert-types exp))
-    (display "\n\nOriginal check: \n")
-    (display (typecheck '() exp))
-    (display "\n\nCheck with new types: \n")
-    (display (typecheck '() (insert-types exp)))
-    (display "\n\n--------------------------------------------\n")      
-    (set! cov '())))
+    (let ((typed-e (typecheck '() exp)))  
+      (begin
+        (display "Original expression: \n")
+        (display exp)
+        (display "\n\nOriginal check: \n")
+        (display typed-e)
+        (display "\n\nEvaluation: \n")
+        (display (evalRec typed-e '()))
+        (display "\n\nCoverage: \n")
+        (display (cov-pc))
+        (display "%")
+        (display "\n\nType Observations: \n")
+        (display type-obs)
+        (display "\n\nTypes Inserted: \n")
+        (let((types-in (insert-types exp)))
+          (display types-in)
+          (display "\n\nCheck with new types: \n")
+          (display (typecheck '() types-in)))
+        
+        ;(display "\n\nCheck with new types: \n")
+        ;(display (typecheck '() (insert-types exp)))
+        (display "\n\n--------------------------------------------\n")      
+        (set! cov '())))))
 
 (define unique
   (lambda (exp)
@@ -91,51 +96,55 @@
 ;Evaluates expression and records types found
 (define evalRec
   (lambda (exp env)
-    (pmatch exp
-            (`,num (guard (number? num)) (cset 'e) num)
-            (`,bool (guard (boolean? bool)) (cset 'e) bool)
-            (`(,op ,e ,l) (guard (member op '(inc dec zero?)))
-                          (cset '1)
-                          (let ((nexp (evalRec e env)))
-                            (cond
-                              ((not (number? nexp)) (error "expression not number, problem is " l))
-                              ((eq? 'inc op) (+ 1 nexp))
-                              ((eq? 'dec op) (- nexp 1))
-                              ((eq? 'zero? op) (zero? nexp)))))
-            (`(if ,t ,c ,a ,l) (cset '2) (cset '1) (let ((texp (evalRec t env)))                                      
+    (pmatch exp         
+            (`(,number int) (guard (number? number)) (cset 'e) number)
+            (`(,boolean bool) (guard (boolean? boolean)) (cset 'e) boolean)
+            (`,number (guard (number? number)) (cset 'e) number)
+            (`,boolean (guard (boolean? boolean)) (cset 'e) boolean)
+            (`((prim ,op ,e) ,T2) (evalRec `(prim ,op ,e) env))
+            (`(prim ,op ,e) (guard (member op '(inc dec zero?)))
+                                  (cset '1)
+                                  (let ((nexp (evalRec e env)))
+                                    (cond
+                                      ((not (number? nexp)) (error "expression not number, problem is "))
+                                      ((eq? 'inc op) (+ 1 nexp))
+                                      ((eq? 'dec op) (- nexp 1))
+                                      ((eq? 'zero? op) (zero? nexp)))))
+            (`((if ,t ,c ,a) ,l) (evalRec `(if ,t ,c ,a) env))
+            (`(if ,t ,c ,a) (cset '2) (cset '1) (let ((texp (evalRec t env)))                                      
                                                      (if  (boolean? texp)
                                                           (if texp
                                                               (begin (cset '1)(evalRec c env))
                                                               (begin (cset '1)(evalRec a env)))
-                                                          (error "test not boolean, problem is: " l))))
-            (`(lambda (,x : ,T) ,e)
+                                                          (error "test not boolean " ))))
+            (`(cast ,L ,e : ,T1 -> ,T2)
+             (let ((val (evalRec e env)) (tp (meet-blame T1 T2 L)))
+               (pmatch val
+                       (`(closure ,x ,par-T ,e1 ,ret-T ,env1) `(closure ,x ,par-T ,e1 ,(meet ret-T tp) ,env1))
+                       (`,other val))))
+            
+            (`(lambda (,x : ,T) ,e) (evalRec `(,exp (-> ,T dyn)) env))
+            (`((lambda (,x : ,T) ,e)(-> ,T ,ret-T))
              (cset 'e)
              (set! type-obs (extend-Trec x T type-obs))
-             `(closure ,x ,e ,env));)
+             `(closure ,x ,T ,e ,ret-T ,env))            
+            (`((call ,e1 ,e2) ,T2) (evalRec `(call ,e1 ,e2) env))
+            (`(call ,e1 ,e2)
+             (cset '3)(cset '1)
+             (let ([v1 (evalRec e1 env)]) (cset '1) 
+               (let ([v2 (evalRec e2 env)])
+                 (pmatch v1                                                              
+                         (`(closure ,x ,par-T ,e11 ,ret-T ,env11)
+                          (set! type-obs (extend-Trec x (meet par-T (type v2)) type-obs))
+                          ;is this meet necessary?
+                          (cset '1)
+                          (evalRec `(,e11 ,ret-T) (extend-env x v2 env11)))
+                         (`,other (error "what are you even doing here (bad application) "))))))
             
-            (`(lambda (,x) ,e)
-             (cset 'e)
-             `(closure ,x ,e ,env))
-            (`(,e1 ,e2 ,l)
-             (if (equal? e1 e2) (error "infinite recursion!")
-                 (begin (cset '3)(cset '1)
-                        (let ([v1 (evalRec e1 env)]) (cset '1) 
-                          (let ([v2 (evalRec e2 env)])
-                            (pmatch v1                                                              
-                                    (`(closure ,x ,e11 ,env11)
-;                                     (pmatch e2
-;                                             (`(,e3 : ,T3 ,l3) 
-;                                              (let ((type2 (resolve-type (type v2)))) 
-;                                                (if (consistent? type2 T3) 
-;                                                    (set! type-obs (extend-Trec x (meet type2 T3) type-obs))
-;                                                    (error "Bad cast," e3  'is  type2  'not  T3 'blame l3)))) 
-                                             (`,other (set! type-obs (extend-Trec x (type v2) type-obs))))
-                                     (cset '1)
-                                     (evalRec e11 (extend-env x v2 env11)))
-                                    (`,other (error "what are you even doing here (bad application): " l))))))))    
-            
+            (`(,x ,ref) (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
             (`,x (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
-            (`,else (error "Invalid input"))))) 
+            (`(,e ,T) (display "help!!") (evalRec e env))
+            (`,else (display "\n") (display exp) (display "\n")(error "Invalid input"))))) 
 
 
 
@@ -144,15 +153,13 @@
 
 ;Determines the type of a data value or operation
 (define type
-  (lambda (exp)
-    (pmatch exp
+  (lambda (val)
+    (pmatch val
             (`,num (guard (number? num)) `int)
-            (`,bool (guard (boolean? bool)) `bool)
-            (`(inc ,x ,L) `int)
-            (`(dec ,x ,L) `int)
-            (`(zero? ,x ,L) `bool)
-            (`(closure ,x  ,e ,env) `(-> (type ,x) (type ,e)))
-            (`(cast ,l ,e ,T) `,T)))) 
+            (`,bool (guard (boolean? bool)) `bool)            
+            (`(closure ,x ,par-T ,e1 ,ret-T ,env1) `(-> ,par-T ,ret-T))
+            (`(cast ,l ,v : ,T1 -> dyn) (meet-blame (type v) T1 l))
+            (`(cast ,l ,v : (-> ,T1 ,T2) ->(-> ,T3 ,T4)) (meet-blame (type v) `(-> ,(meet T1 T3) ,(meet T2 T4)) l))))) 
 
 ;Inserts types from type-obs into expression
 (define insert-types
@@ -232,9 +239,9 @@
             (`int `int)
             (`bool `bool)
             (`dyn `dyn)
-            (`(-> ,t1 ,t2) `(-> ,(resolve-type t1) ,(resolve-type t2)))
-            
-            
+            (`(-> ,t1 ,t2) `(-> ,(resolve-type t1) ,(resolve-type t2))))))
+
+
 ;            (`(type (,op ,e ,L)) (guard (member op '(inc dec))) `int) ;WHAT TO DO WITH E??
 ;            (`(type (zero? ,e ,L)) `bool)
 ;            (`(type (,e : ,T ,L)) T)
@@ -273,6 +280,16 @@
   (lambda (fun app)
     (list fun (unique app) (gensym 'BLAME_))))
 ;--------------------TESTS--------------------------------------------------------------------------------------
+(evals (unique '#t))
+(evals (unique '7))
+(evals (unique '(inc 7 L)))
+(evals (unique '(if #t 6 7 L)))
+(evals (unique '(lambda (x) x)))
+(evals (unique '(lambda (x : int) x)))
+(evals (unique '((lambda (x) x) 7 L)))
+(evals (unique '((lambda (x : int) x) 7 L)))
+
+
 (define f02 (unique '(lambda (x) (if x (lambda (y) y) (lambda (z) z) L))))
 (funapp (appli f02 #t) #f)
 (check-error (funapp (appli f02 #f) 7))

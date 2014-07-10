@@ -3,6 +3,7 @@
 (provide typecheck)
 (provide consistent?)
 (provide meet)
+(provide meet-blame)
 (define consistent?
   (lambda (FT1 FT2)   
     (pmatch `(,FT1 ,FT2)
@@ -21,6 +22,15 @@
             (`(bool bool) `bool)
             (`((-> ,TT11 ,TT12) (-> ,TT21 ,TT22)) `(-> ,(meet TT11 TT21) ,(meet TT12 TT22)))
             (`other (error 'meet "types are not consistent")))))
+(define meet-blame
+  (lambda (TT1 TT2 L) 
+    (pmatch `(,TT1 ,TT2)
+            (`(,TT1 dyn) TT1)
+            (`(dyn ,TT2) TT2)
+            (`(int int) `int)
+            (`(bool bool) `bool)
+            (`((-> ,TT11 ,TT12) (-> ,TT21 ,TT22)) `(-> ,(meet-blame TT11 TT21 L) ,(meet-blame TT12 TT22 L)))
+            (`other (error 'meet "types are not consistent, blame is " L)))))
 (define cast
   (lambda (l e T1 T2)
     (if (consistent? T1 T2)
@@ -91,6 +101,7 @@
             (`(,e1 ,e2 ,l)
              (pmatch `( ,(typecheck env e2) ,(typecheck env e1))
                      (`((,new-e2 ,T2) (,new-e1 dyn))
+                      (display "a ")
                       `((call ,(mk-cast l new-e1 `dyn `(-> ,T2 dyn)) ,new-e2) dyn))
                      (`((,new-e2 ,T2) (,new-e1 (-> ,T11 ,T12)))
                       (cond
