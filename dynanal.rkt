@@ -298,15 +298,15 @@
 ;
 ;(define f02 (unique '(lambda (x) (if x (lambda (y) y) (lambda (z) z) L))))
 ;(funapp (appli f02 #t) #f)
-;(check-error (funapp (appli f02 #f) 7))
+
 ;
 ;(define f03 (unique '(lambda (x) (if x (lambda (y : dyn) y) (lambda (z : dyn) z) L))))
 ;(funapp (appli f03 #t) #f)
-;(check-error (funapp (appli f03 #f) 7))
+
 ;
 ;(define f04 (unique '(lambda (x) (if x (lambda (y : dyn) y) (lambda (z : dyn) z) L))))
 ;(funapp (appli f04 #t) '(#f : dyn M))
-;(check-error (funapp (appli f04 #f) '(7 : dyn N)))
+
 ;(define f01 (unique '(lambda (x) x)))
 ;(funapp f01 '(lambda (y : dyn) (y : dyn L)))
 ;(funapp f01 '(lambda (y : dyn) (y : int M))) ;What should this return anyway??
@@ -315,41 +315,45 @@
 ;(funapp f01 '(lambda (y : int) (y : int O)))
 ;
 
-(define f1 (unique '(lambda (c : dyn) (if c (lambda (v) (dec v L)) (lambda (w) (inc w L)) L))))
-(funapp f1 #t)
-(funapp f1 #f)
-(define f2 (unique '(((lambda (f) (dec f L)) 9 B) : int M)))
-(evals f2)
-(define f3 (unique '(lambda (z) (zero? z L))))
-(funapp f3 '(7 : int M))
-(define f4fail (unique '(lambda (z) (zero? z L))))
-(check-error (funapp f4fail '(7 : bool M)))
-(define f5 (unique '(lambda (c) (if c (lambda (v) (dec v L)) (lambda (w) (inc w L)) L)))) 
-(funapp f5 #t)
+;(define f1 (unique '(lambda (c : dyn) (if c (lambda (v) (dec v L)) (lambda (w) (inc w L)) L))))
+;(funapp f1 #t)
+;(funapp f1 #f)
+;(define f2 (unique '(((lambda (f) (dec f L)) 9 B) : int M)))
+;(evals f2)
+;(define f3 (unique '(lambda (z) (zero? z L))))
+;(funapp f3 '(7 : int M))
 
 
-(define f6 (unique '(lambda (b) (b 7 L))))
-(define f7 (unique '(lambda (c) (if c (lambda (v) (dec v L)) (lambda (w) (inc w L)) L ))))
-(define f8 (unique '(lambda (d) (zero? d L))))
-(funapp f6 (appli f7 (appli f8 9)))
+;(define f5 (unique '(lambda (c) (if c (lambda (v) (dec v L)) (lambda (w) (inc w L)) L)))) 
+;(funapp f5 #t)
 
-(check-error (evals (unique '(if #t #f 7 L))))
 
-(check-error (evals (unique '((inc 8 L) 9 M))))
+;(define f6 (unique '(lambda (b) (b 7 L))))
+;(define f7 (unique '(lambda (c) (if c (lambda (v) (dec v L)) (lambda (w) (inc w L)) L ))))
+;(define f8 (unique '(lambda (d) (zero? d L))))
+;(funapp f6 (appli f7 (appli f8 9)))
+;
+;
+;(define f9 (unique '(lambda (x) ((lambda (y) (y x L)) ((lambda (z) (inc (inc z L) L)) : (-> int int) L) L))))
+;(funapp f9 4)
+;
+;(define f10 (unique '(lambda (x) x))) 
+;(funapp f10 (unique '(if #t 6 7 L)))
+;(define f11 (unique '(lambda (b) (if b 7 8 L))))
+;(evals (unique `(if #t ,(appli f11 #t) 9 L)))
+;(evals (unique '(lambda (m) (m 3 L))))
+;
+;(define f15 (unique '(lambda (j) (j 3 L))))
+;
+;(define f12 (unique '(lambda (g) ((lambda (h) ((lambda (i) (if i g h L)) #t L)) 4 L))))
+;(funapp f12 9)
+(define a (unique '((lambda (x : dyn) x) : dyn L)))
+(define b (unique '((lambda (x : int) x) : dyn M)))
+(define shell (unique '(lambda (x) x)))
+;(funapp shell a)
+;(funapp shell b)
+(funapp shell (appli a 7))
 
-(define f9 (unique '(lambda (x) ((lambda (y) (y x L)) ((lambda (z) (inc (inc z L) L)) : (-> int int) L) L))))
-(funapp f9 4)
-
-(define f10 (unique '(lambda (x) x))) 
-(funapp f10 (unique '(if #t 6 7 L)))
-(define f11 (unique '(lambda (b) (if b 7 8 L))))
-(evals (unique `(if #t ,(appli f11 #t) 9 L)))
-(evals (unique '(lambda (m) (m 3 L))))
-
-(define f15 (unique '(lambda (j) (j 3 L))))
-
-(define f12 (unique '(lambda (g) ((lambda (h) ((lambda (i) (if i g h L)) #t L)) 4 L))))
-(funapp f12 9)
 (evals (unique '((lambda (j) (j 3 L)) (lambda (q) (inc q L)) L)))
 (evals (unique '((lambda (j) (j 3 L)) (lambda (q) (dec q L)) L)))
 
@@ -359,7 +363,7 @@
 (funapp (appli f13 -1) 7)
 
 (evals (unique '(lambda (x) (x x L))))
-(check-error (evals (unique '((lambda (x) (x x L)) (lambda (y) 2) M))))
+
 
 
 
