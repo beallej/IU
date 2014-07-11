@@ -123,12 +123,13 @@
 ;               `(cast ,L ,val : ,T1 -> ,T2)))
              
              (let ((val (evalRec e env)) (tp (meet-blame T1 T2 L)))
-               (pmatch val
-                       
+              
+               (pmatch val                  
                        (`(closure ,x ,par-T ,e1 ,ret-T ,env1) 
                         (pmatch tp
                                 (`(-> ,T3 ,T4) 
                                  (let ((new_p (meet par-T T3)) (new_r (meet ret-T T4))) `(closure ,x ,new_p ,e1 ,new_r ,env1)))))
+                       
                        (`,other val))))
             
             (`(lambda (,x : ,T) ,e) (evalRec `(,exp (-> ,T dyn)) env))
