@@ -110,3 +110,23 @@
                         (else (error 'typecheck "arg/param mismatch" T2 T11))))
                      (`((,new-e2 ,T2) (,new-e1 ,other-T))                   
                       (error 'typecheck "call to non-function")))))))
+
+
+
+(define apply-lazy
+  (lambda (apply-cast)    
+      (lambda (F v)
+        (let ([recur (apply-lazy apply-cast)])
+          (pmatch F
+                  (`(cast ,l ,F1 : (-> ,T1 ,T2) -> (-> ,T3 ,T4))
+                   (letB (x3 (apply-cast l v T3 T1))
+                         (letB (x4 (recur F1 x3))
+                               (apply-cast l x4 T2 T4))))
+                  (`,proc (guard (procedure? proc)) (proc v)))))))
+
+(define-syntax letB
+  (syntax-rules ()
+    [(letB [x e1] e2)
+     (pmatch e1
+             (`(blame ,L) `(blame ,L))
+             (`,v (let ((x v)) e2)))]))

@@ -119,6 +119,9 @@
                                                           (error "test not boolean " ))))
             (`(cast ,L ,e : ,T1 -> ,T2)
              
+;             (let ((val (evalRec e env)))
+;               `(cast ,L ,val : ,T1 -> ,T2)))
+             
              (let ((val (evalRec e env)) (tp (meet-blame T1 T2 L)))
                (pmatch val
                        
@@ -144,11 +147,12 @@
                           ;is this meet necessary?
                           (cset '1)
                           (evalRec `(,e11 ,ret-T) (extend-env x v2 env11)))
-                         (`,other (error "what are you even doing here (bad application) "))))))
+                         
+                         (`,other (display "\n")(display v1) (error "what are you even doing here (bad application) "))))))
             
             (`(,x ,ref) (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
             (`,x (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
-            (`(,e ,T) (display "help!!") (evalRec e env))
+            (`(,e ,T) (evalRec e env))
             (`,else (error "Invalid input"))))) 
 
 
@@ -347,12 +351,10 @@
 ;
 ;(define f12 (unique '(lambda (g) ((lambda (h) ((lambda (i) (if i g h L)) #t L)) 4 L))))
 ;(funapp f12 9)
-(define a (unique '((lambda (x : dyn) x) : dyn L)))
-(define b (unique '((lambda (x : int) x) : dyn M)))
-(define shell (unique '(lambda (x) x)))
-;(funapp shell a)
-;(funapp shell b)
-(funapp shell (appli a 7))
+(evals (unique '((lambda (x : dyn) x) : dyn L)))
+(evals (unique '((lambda (x : int) x) : dyn M)))
+(evals (unique '(((lambda (x : dyn) x) : dyn L) 7 M)))
+
 
 (evals (unique '((lambda (j) (j 3 L)) (lambda (q) (inc q L)) L)))
 (evals (unique '((lambda (j) (j 3 L)) (lambda (q) (dec q L)) L)))
