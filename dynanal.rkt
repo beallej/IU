@@ -105,21 +105,22 @@
             (`,boolean (guard (boolean? boolean)) (cset 'e) boolean)
             (`((prim ,op ,e) ,T2) (evalRec `(prim ,op ,e) env))
             (`(prim ,op ,e) (guard (member op '(inc dec zero?)))
-                                  (cset '1)
-                                  (let ((nexp (evalRec e env)))
-                                    (cond
-                                      ((not (number? nexp)) (error "expression not number, problem is "))
-                                      ((eq? 'inc op) (+ 1 nexp))
-                                      ((eq? 'dec op) (- nexp 1))
-                                      ((eq? 'zero? op) (zero? nexp)))))
+                            (cset '1)
+                            (let ((nexp (evalRec e env)))
+                              (cond
+                                ((not (number? nexp)) (error "expression not number, problem is " exp))
+                                ((eq? 'inc op) (+ 1 nexp))
+                                ((eq? 'dec op) (- nexp 1))
+                                ((eq? 'zero? op) (zero? nexp)))))
             (`((if ,t ,c ,a) ,l) (evalRec `(if ,t ,c ,a) env))
             (`(if ,t ,c ,a) (cset '2) (cset '1) (let ((texp (evalRec t env)))                                      
-                                                     (if  (boolean? texp)
-                                                          (if texp
-                                                              (begin (cset '1)(evalRec c env))
-                                                              (begin (cset '1)(evalRec a env)))
-                                                          (error "test not boolean " ))))
-            (`(cast ,L ,e : ,T1 -> ,T2)             
+                                                  (if  (boolean? texp)
+                                                       (if texp
+                                                           (begin (cset '1)(evalRec c env))
+                                                           (begin (cset '1)(evalRec a env)))
+                                                       (error "test not boolean " exp))))
+            (`(cast ,L ,e : ,T1 -> ,T2)
+             (cset '1)
              (let ((val (evalRec e env)) (tp (meet-blame T1 T2 L)))              
                (pmatch val                  
                        (`(closure ,x ,par-T ,e1 ,ret-T ,env1) 
@@ -135,17 +136,23 @@
             (`((call ,e1 ,e2) ,T2) (evalRec `(call ,e1 ,e2) env))
             (`(call ,e1 ,e2)
              (cset '3)(cset '1)
-             (let ([v1 (evalRec e1 env)]) (cset '1) 
+             (let ([v1 (evalRec2 e1 env)]) (cset '1) 
                (let ([v2 (evalRec e2 env)])
-                 (pmatch v1                                                              
+                 (pmatch v1
+                         (`(,x1 ,ans record)
+                          (pmatch ans
+                                  (`(closure ,x ,par-T ,e11 ,ret-T ,env11)
+                                   (let ((tv2 (meet par-T (type v2))))                                     
+                                     (set! type-obs (extend-Trec x1 `(-> ,tv2 ,ret-T) type-obs))
+                                     (set! type-obs (extend-Trec x tv2 type-obs)))                                   
+                                   (cset '1)
+                                   (evalRec `(,e11 ,ret-T) (extend-env x v2 env11)))))
                          (`(closure ,x ,par-T ,e11 ,ret-T ,env11);                                         
                           (set! type-obs (extend-Trec x (meet par-T (type v2)) type-obs))
-                          ;is this meet necessary?
+                          ;------------------------------^is this meet necessary?
                           (cset '1)
                           (evalRec `(,e11 ,ret-T) (extend-env x v2 env11)))
-                         
                          (`,other (display "\n")(display v1) (error "what are you even doing here (bad application) "))))))
-            
             (`(,x ,ref) (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
             (`,x (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
             (`(,e ,T) (evalRec e env))
@@ -154,7 +161,20 @@
 
 
 
-
+(define evalRec2
+  (lambda (exp env)
+    (pmatch exp
+            (`,x (guard (symbol? x)) (cset 'e)`(,x ,(env-lookup x env) record))
+            (`(cast ,L ,x : ,T1 -> ,T2) (guard (symbol? x))
+                                        (cset '1)(cset 'e)
+                                        (let ((val (env-lookup x env)) (tp (meet-blame T1 T2 L)))              
+                                          (pmatch val                  
+                                                  (`(closure ,x1 ,par-T ,e1 ,ret-T ,env1) 
+                                                   (pmatch tp
+                                                           (`(-> ,T3 ,T4) 
+                                                            (let ((new_p (meet par-T T3)) (new_r (meet ret-T T4))) `(,x (closure ,x1 ,new_p ,e1 ,new_r ,env1) record)))))                       
+                                                  (`,other `(,x ,other record)))))
+            (`,other (evalRec exp env)))))
 
 ;Determines the type of a data value or operation
 (define type
@@ -200,7 +220,7 @@
             (`,boolean (guard (boolean? boolean)) boolean)
             (`((prim ,op ,e) ,T2) `((prim ,op ,(collapse e)) ,T2))
             (`(prim ,op ,e) (guard (member op '(inc dec zero?)))
-                                  `(prim ,op ,(collapse e)))
+                            `(prim ,op ,(collapse e)))
             (`((if ,t ,c ,a) ,l) `((if ,(collapse t) ,(collapse c) ,(collapse a)) ,l))
             (`(if ,t ,c ,a)`(if ,(collapse t),(collapse c),(collapse a)))
             (`(cast ,L ,e : ,T1 -> ,T2)
@@ -214,14 +234,14 @@
             (`(call ,e1 ,e2)
              (let ((c1 (collapse e1)) (c2 (collapse e2)))
                (pmatch `(,c1 ,c2)
-                       (`((,e11 ,T11) (,e22 ,T22))
-                       `(call (,e11 ,(meet T11 T22)) (,e22 ,T22)))
+                       (`((lambda (,x : ,T11) ,e11) (,e22 ,T22))
+                        `(call (lambda (,x : ,(meet T11 T22)) ,e11) (,e22 ,T22)))
                        (`,other `(call ,c1 ,c2)))))
             (`(,x ,ref) (guard (symbol? x)) `(,x ,ref))
             (`,x (guard (symbol? x))`,x)
             (`(,e ,T) `(,(collapse e) ,T))
             (`,else (error "Invalid input"))))) 
-            
+
 (define istype?
   (lambda (tp)
     (pmatch tp
@@ -375,9 +395,18 @@
 ;(evals (unique '((lambda (x : int) x) : dyn M)))
 ;(evals (unique '(((lambda (x : dyn) x) : dyn L) 7 M)))
 
-
+(evals (unique '((lambda (j) (inc j L)) 3 L)))
 (evals (unique '((lambda (j) (j 3 L)) (lambda (q) (inc q L)) L)))
 (evals (unique '((lambda (j) (j 3 L)) (lambda (q) (dec q L)) L)))
+(evals (unique ' ((lambda (k) (if k (lambda (m) (inc m L)) (lambda (n) (dec n L)) L)) 
+            #t 
+            L)))
+(evals (unique
+        '((lambda (j) (j 3 L)) 
+           ((lambda (k) (if k (lambda (m) (inc m L)) (lambda (n) (dec n L)) L)) 
+            #t 
+            L) 
+           L)))
 ;
 ;;(define f13 (unique '(lambda (x) (if (zero? (inc x D) E) (lambda (y) ((dec y C) : dyn F)) (lambda (z) ((zero? z A) : dyn G)) B))))
 ;;(evals f13)
