@@ -76,7 +76,7 @@
                                    (`,other (error 'typecheck "primitive operator"))))
             (`(if ,cnd ,thn ,els ,l)
              (pmatch `(,(typecheck env cnd) ,(typecheck env thn) ,(typecheck env els))
-                     (`((,new-cnd ,cnd-T) (,new-thn ,thn-T) (,new-els ,els-T)) 
+                     (`((,new-cnd ,cnd-T) (,new-thn ,thn-T) (,new-els ,els-T))                      
                       (cond
                         ((and (consistent? thn-T els-T) (consistent? cnd-T `bool))
                          (let ((if-T (meet thn-T els-T)))                                                                                    
@@ -96,17 +96,18 @@
              (pmatch `,(typecheck env e1)
                      (`(,new-e ,e-T)
                       (cond
-                        ((consistent? e-T T) `(,(mk-cast l new-e e-T T) ,T))
+                        ((consistent? e-T T) `(,(mk-cast l new-e e-T T) ,T))                        
                         (else (error 'typecheck "cast between inconsistent types"))))))
             
             (`(,e1 ,e2 ,l)
-            
+             
              (pmatch `( ,(typecheck env e2) ,(typecheck env e1))
-                     (`((,new-e2 ,T2) (,new-e1 dyn))                      
+                     (`((,new-e2 ,T2) (,new-e1 dyn))                     
                       `((call ,(mk-cast l new-e1 `dyn `(-> ,T2 dyn)) ,new-e2) dyn))
                      (`((,new-e2 ,T2) (,new-e1 (-> ,T11 ,T12)))
                       (cond
-                        ((consistent? T2 T11) `((call ,new-e1 ,(mk-cast l new-e2 T2 T11)) ,T12))
+                        ((consistent? T2 T11)
+                         `((call ,new-e1 ,(mk-cast l new-e2 T2 T11)) ,T12))
                         (else (error 'typecheck "arg/param mismatch" T2 T11))))
                      (`((,new-e2 ,T2) (,new-e1 ,other-T))                   
                       (error 'typecheck "call to non-function")))))))
@@ -115,14 +116,14 @@
 
 (define apply-lazy
   (lambda (apply-cast)    
-      (lambda (F v)
-        (let ([recur (apply-lazy apply-cast)])
-          (pmatch F
-                  (`(cast ,l ,F1 : (-> ,T1 ,T2) -> (-> ,T3 ,T4))
-                   (letB (x3 (apply-cast l v T3 T1))
-                         (letB (x4 (recur F1 x3))
-                               (apply-cast l x4 T2 T4))))
-                  (`,proc (guard (procedure? proc)) (proc v)))))))
+    (lambda (F v)
+      (let ([recur (apply-lazy apply-cast)])
+        (pmatch F
+                (`(cast ,l ,F1 : (-> ,T1 ,T2) -> (-> ,T3 ,T4))
+                 (letB (x3 (apply-cast l v T3 T1))
+                       (letB (x4 (recur F1 x3))
+                             (apply-cast l x4 T2 T4))))
+                (`,proc (guard (procedure? proc)) (proc v)))))))
 
 (define-syntax letB
   (syntax-rules ()

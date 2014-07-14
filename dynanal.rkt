@@ -28,10 +28,12 @@
         (display "\n\nType Observations: \n")
         (display type-obs)
         (display "\n\nTypes Inserted: \n")
-        (let((types-in (insert-types exp)))
+        (let* ((types-in (insert-types exp)) (types-out (typecheck '() types-in)))
           (display types-in)
           (display "\n\nCheck with new types: \n")
-          (display (typecheck '() types-in)))
+          (display types-out)
+          (display "\n\nCollapsed: \n")
+          (display (collapse types-out)))
         
         ;(display "\n\nCheck with new types: \n")
         ;(display (typecheck '() (insert-types exp)))
@@ -117,21 +119,14 @@
                                                               (begin (cset '1)(evalRec c env))
                                                               (begin (cset '1)(evalRec a env)))
                                                           (error "test not boolean " ))))
-            (`(cast ,L ,e : ,T1 -> ,T2)
-             
-;             (let ((val (evalRec e env)))
-;               `(cast ,L ,val : ,T1 -> ,T2)))
-             
-             (let ((val (evalRec e env)) (tp (meet-blame T1 T2 L)))
-              
+            (`(cast ,L ,e : ,T1 -> ,T2)             
+             (let ((val (evalRec e env)) (tp (meet-blame T1 T2 L)))              
                (pmatch val                  
                        (`(closure ,x ,par-T ,e1 ,ret-T ,env1) 
                         (pmatch tp
                                 (`(-> ,T3 ,T4) 
-                                 (let ((new_p (meet par-T T3)) (new_r (meet ret-T T4))) `(closure ,x ,new_p ,e1 ,new_r ,env1)))))
-                       
-                       (`,other val))))
-            
+                                 (let ((new_p (meet par-T T3)) (new_r (meet ret-T T4))) `(closure ,x ,new_p ,e1 ,new_r ,env1)))))                       
+                       (`,other val))))            
             (`(lambda (,x : ,T) ,e) (evalRec `(,exp (-> ,T dyn)) env))
             (`((lambda (,x : ,T) ,e)(-> ,T ,ret-T)) 
              (cset 'e)
@@ -196,7 +191,45 @@
             (`,x `,x))))
 
 
-
+(define collapse
+  (lambda (exp)
+    (pmatch exp
+            (`(,number int) (guard (number? number)) exp)
+            (`(,boolean bool) (guard (boolean? boolean)) exp)
+            (`,number (guard (number? number)) number)
+            (`,boolean (guard (boolean? boolean)) boolean)
+            (`((prim ,op ,e) ,T2) `((prim ,op ,(collapse e)) ,T2))
+            (`(prim ,op ,e) (guard (member op '(inc dec zero?)))
+                                  `(prim ,op ,(collapse e)))
+            (`((if ,t ,c ,a) ,l) `((if ,(collapse t) ,(collapse c) ,(collapse a)) ,l))
+            (`(if ,t ,c ,a)`(if ,(collapse t),(collapse c),(collapse a)))
+            (`(cast ,L ,e : ,T1 -> ,T2)
+             (pmatch (collapse e)
+                     (`(,e1 ,T3) (guard (istype? T3)) `(,e1 ,(meet T3 (meet T1 T2))))
+                     (`,e1 `(,e1 ,(meet T1 T2)))))             
+            (`(lambda (,x : ,T) ,e) `(lambda (,x : ,T) ,(collapse e)))
+            (`((lambda (,x : ,T) ,e)(-> ,T ,ret-T))
+             `((lambda (,x : ,T) ,(collapse e)(-> ,T ,ret-T))))          
+            (`((call ,e1 ,e2) ,T2) `(,(collapse `(call ,e1 ,e2)) ,T2))
+            (`(call ,e1 ,e2)
+             (let ((c1 (collapse e1)) (c2 (collapse e2)))
+               (pmatch `(,c1 ,c2)
+                       (`((,e11 ,T11) (,e22 ,T22))
+                       `(call (,e11 ,(meet T11 T22)) (,e22 ,T22)))
+                       (`,other `(call ,c1 ,c2)))))
+            (`(,x ,ref) (guard (symbol? x)) `(,x ,ref))
+            (`,x (guard (symbol? x))`,x)
+            (`(,e ,T) `(,(collapse e) ,T))
+            (`,else (error "Invalid input"))))) 
+            
+(define istype?
+  (lambda (tp)
+    (pmatch tp
+            (`int #t)
+            (`bool #t)
+            (`dyn #t)
+            (`(-> ,t1 ,t2) (and (istype? t1) (istype? t2)))
+            (`,other #f))))
 
 ;Extends regular environment
 (define extend-env
@@ -265,21 +298,6 @@
 ;--------------------OTHER FUNCTIONS THAT I NO LONGER USE BUT DON'T WANT TO THROW AWAY--------------------------
 
 
-(define env-lookup-id               ;possibly unstable...shouldn't have to use, don't currently
-  (lambda (x env)
-    (let ((info (assoc x env))) 
-      (if info (car (cdr info)) (error "id- unbound variable" x)))))
-
-;old coverage functions
-(define coverage
-  '(0 0))
-(define addcov
-  (lambda ()    
-    (set! coverage (cons (+ 1 (car coverage)) (cdr coverage))))) 
-(define subcov
-  (lambda ()
-    (set! coverage (cons (car coverage) (+ 1 (cadr coverage))))))
-
 
 
 ;--------------------TESTING FUNCTIONS--------------------------------------------------------------------------
@@ -291,6 +309,7 @@
   (lambda (fun app)
     (list fun (unique app) (gensym 'BLAME_))))
 ;--------------------TESTS--------------------------------------------------------------------------------------
+
 ;(evals (unique '#t))
 ;(evals (unique '7))
 ;(evals (unique '(inc 7 L)))
@@ -303,11 +322,11 @@
 ;
 ;(define f02 (unique '(lambda (x) (if x (lambda (y) y) (lambda (z) z) L))))
 ;(funapp (appli f02 #t) #f)
-
+;
 ;
 ;(define f03 (unique '(lambda (x) (if x (lambda (y : dyn) y) (lambda (z : dyn) z) L))))
 ;(funapp (appli f03 #t) #f)
-
+;
 ;
 ;(define f04 (unique '(lambda (x) (if x (lambda (y : dyn) y) (lambda (z : dyn) z) L))))
 ;(funapp (appli f04 #t) '(#f : dyn M))
@@ -341,31 +360,31 @@
 ;
 ;(define f9 (unique '(lambda (x) ((lambda (y) (y x L)) ((lambda (z) (inc (inc z L) L)) : (-> int int) L) L))))
 ;(funapp f9 4)
-;
-;(define f10 (unique '(lambda (x) x))) 
-;(funapp f10 (unique '(if #t 6 7 L)))
-;(define f11 (unique '(lambda (b) (if b 7 8 L))))
-;(evals (unique `(if #t ,(appli f11 #t) 9 L)))
-;(evals (unique '(lambda (m) (m 3 L))))
-;
-;(define f15 (unique '(lambda (j) (j 3 L))))
-;
-;(define f12 (unique '(lambda (g) ((lambda (h) ((lambda (i) (if i g h L)) #t L)) 4 L))))
-;(funapp f12 9)
-(evals (unique '((lambda (x : dyn) x) : dyn L)))
-(evals (unique '((lambda (x : int) x) : dyn M)))
-(evals (unique '(((lambda (x : dyn) x) : dyn L) 7 M)))
+;;
+;;(define f10 (unique '(lambda (x) x))) 
+;;(funapp f10 (unique '(if #t 6 7 L)))
+;;(define f11 (unique '(lambda (b) (if b 7 8 L))))
+;;(evals (unique `(if #t ,(appli f11 #t) 9 L)))
+;;(evals (unique '(lambda (m) (m 3 L))))
+;;
+;;(define f15 (unique '(lambda (j) (j 3 L))))
+;;
+;;(define f12 (unique '(lambda (g) ((lambda (h) ((lambda (i) (if i g h L)) #t L)) 4 L))))
+;;(funapp f12 9)
+;(evals (unique '((lambda (x : dyn) x) : dyn L)))
+;(evals (unique '((lambda (x : int) x) : dyn M)))
+;(evals (unique '(((lambda (x : dyn) x) : dyn L) 7 M)))
 
 
 (evals (unique '((lambda (j) (j 3 L)) (lambda (q) (inc q L)) L)))
 (evals (unique '((lambda (j) (j 3 L)) (lambda (q) (dec q L)) L)))
-
-(define f13 (unique '(lambda (x) (if (zero? (inc x D) E) (lambda (y) ((dec y C) : dyn F)) (lambda (z) ((zero? z A) : dyn G)) B))))
-(evals f13)
-(funapp (appli f13 0) 7)
-(funapp (appli f13 -1) 7)
-
-(evals (unique '(lambda (x) (x x L))))
+;
+;;(define f13 (unique '(lambda (x) (if (zero? (inc x D) E) (lambda (y) ((dec y C) : dyn F)) (lambda (z) ((zero? z A) : dyn G)) B))))
+;;(evals f13)
+;;(funapp (appli f13 0) 7)
+;;(funapp (appli f13 -1) 7)
+;
+;(evals (unique '(lambda (x) (x x L))))
 
 
 
