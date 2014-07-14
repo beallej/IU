@@ -126,7 +126,8 @@
                        (`(closure ,x ,par-T ,e1 ,ret-T ,env1) 
                         (pmatch tp
                                 (`(-> ,T3 ,T4) 
-                                 (let ((new_p (meet par-T T3)) (new_r (meet ret-T T4))) `(closure ,x ,new_p ,e1 ,new_r ,env1)))))                       
+                                 (let ((new_p (meet par-T T3)) (new_r (meet ret-T T4))) 
+                                   `(closure ,x ,new_p ,e1 ,new_r ,env1)))))                       
                        (`,other val))))            
             (`(lambda (,x : ,T) ,e) (evalRec `(,exp (-> ,T dyn)) env))
             (`((lambda (,x : ,T) ,e)(-> ,T ,ret-T)) 
@@ -160,20 +161,21 @@
 
 
 
-
+;so we can remember the variable name if we need to bind it to a function type that we won't find out until later
 (define evalRec2
   (lambda (exp env)
     (pmatch exp
             (`,x (guard (symbol? x)) (cset 'e)`(,x ,(env-lookup x env) record))
-            (`(cast ,L ,x : ,T1 -> ,T2) (guard (symbol? x))
-                                        (cset '1)(cset 'e)
-                                        (let ((val (env-lookup x env)) (tp (meet-blame T1 T2 L)))              
-                                          (pmatch val                  
-                                                  (`(closure ,x1 ,par-T ,e1 ,ret-T ,env1) 
-                                                   (pmatch tp
-                                                           (`(-> ,T3 ,T4) 
-                                                            (let ((new_p (meet par-T T3)) (new_r (meet ret-T T4))) `(,x (closure ,x1 ,new_p ,e1 ,new_r ,env1) record)))))                       
-                                                  (`,other `(,x ,other record)))))
+            (`(cast ,L ,x : ,T1 -> ,T2) 
+             (guard (symbol? x))
+             (cset '1)(cset 'e)
+             (let ((val (env-lookup x env)) (tp (meet-blame T1 T2 L)))              
+               (pmatch val                  
+                       (`(closure ,x1 ,par-T ,e1 ,ret-T ,env1) 
+                        (pmatch tp
+                                (`(-> ,T3 ,T4) 
+                                 (let ((new_p (meet par-T T3)) (new_r (meet ret-T T4))) `(,x (closure ,x1 ,new_p ,e1 ,new_r ,env1) record)))))                       
+                       (`,other `(,x ,other record)))))
             (`,other (evalRec exp env)))))
 
 ;Determines the type of a data value or operation
@@ -330,6 +332,10 @@
     (list fun (unique app) (gensym 'BLAME_))))
 ;--------------------TESTS--------------------------------------------------------------------------------------
 
+;(evals (unique
+       ; '(((lambda (x : int) (#t : dyn L)) : (-> int int) L) 42 L)))
+;(evals (unique
+;        '((((lambda (x : int) #t) : (-> int dyn) L) : (-> int int) L) 42 L)))
 ;(evals (unique '#t))
 ;(evals (unique '7))
 ;(evals (unique '(inc 7 L)))
@@ -391,22 +397,22 @@
 ;;
 ;;(define f12 (unique '(lambda (g) ((lambda (h) ((lambda (i) (if i g h L)) #t L)) 4 L))))
 ;;(funapp f12 9)
-;(evals (unique '((lambda (x : dyn) x) : dyn L)))
-;(evals (unique '((lambda (x : int) x) : dyn M)))
-;(evals (unique '(((lambda (x : dyn) x) : dyn L) 7 M)))
+(evals (unique '((lambda (x : dyn) x) : dyn L)))
+(evals (unique '((lambda (x : int) x) : dyn M)))
+(evals (unique '(((lambda (x : dyn) x) : dyn L) 7 M)))
 
 (evals (unique '((lambda (j) (inc j L)) 3 L)))
 (evals (unique '((lambda (j) (j 3 L)) (lambda (q) (inc q L)) L)))
 (evals (unique '((lambda (j) (j 3 L)) (lambda (q) (dec q L)) L)))
 (evals (unique ' ((lambda (k) (if k (lambda (m) (inc m L)) (lambda (n) (dec n L)) L)) 
-            #t 
-            L)))
+                  #t 
+                  L)))
 (evals (unique
         '((lambda (j) (j 3 L)) 
-           ((lambda (k) (if k (lambda (m) (inc m L)) (lambda (n) (dec n L)) L)) 
-            #t 
-            L) 
-           L)))
+          ((lambda (k) (if k (lambda (m) (inc m L)) (lambda (n) (dec n L)) L)) 
+           #t 
+           L) 
+          L)))
 ;
 ;;(define f13 (unique '(lambda (x) (if (zero? (inc x D) E) (lambda (y) ((dec y C) : dyn F)) (lambda (z) ((zero? z A) : dyn G)) B))))
 ;;(evals f13)
