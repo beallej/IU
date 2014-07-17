@@ -4,6 +4,16 @@
 (provide consistent?)
 (provide meet)
 (provide meet-blame)
+
+;All functions taken from:
+
+;Siek, J. G., & Garcia, R. (2013). 
+;Interpretations of the Gradually-Typed Lambda Calculus. 
+;Proceedings of the Scheme and Functional Programming Workshop.
+;Retrieved from http://wphomes.soic.indiana.edu/jsiek/files/2013/06/igtlc.pdf
+
+
+;Returns true if one type can be casted to another
 (define consistent?
   (lambda (FT1 FT2)   
     (pmatch `(,FT1 ,FT2)
@@ -11,8 +21,11 @@
             (`(dyn ,FT2) #t)
             (`(int int) #t)
             (`(bool bool) #t)
-            (`((-> ,FT11 ,FT12) (-> ,FT21 ,FT22)) (and (consistent? FT12 FT22) (consistent? FT11 FT21)))
+            (`((-> ,FT11 ,FT12) (-> ,FT21 ,FT22)) 
+             (and (consistent? FT12 FT22) (consistent? FT11 FT21)))
             (`,other #f))))
+
+;Returns the most specific combination of two consistent types
 (define meet
   (lambda (TT1 TT2) 
     (pmatch `(,TT1 ,TT2)
@@ -20,8 +33,11 @@
             (`(dyn ,TT2) TT2)
             (`(int int) `int)
             (`(bool bool) `bool)
-            (`((-> ,TT11 ,TT12) (-> ,TT21 ,TT22)) `(-> ,(meet TT11 TT21) ,(meet TT12 TT22)))
+            (`((-> ,TT11 ,TT12) (-> ,TT21 ,TT22)) 
+             `(-> ,(meet TT11 TT21) ,(meet TT12 TT22)))
             (`other (error 'meet "types are not consistent")))))
+
+;Returns the most specific combination of two consistent types, displays blame label if fail
 (define meet-blame
   (lambda (TT1 TT2 L) 
     (pmatch `(,TT1 ,TT2)
@@ -29,24 +45,21 @@
             (`(dyn ,TT2) TT2)
             (`(int int) `int)
             (`(bool bool) `bool)
-            (`((-> ,TT11 ,TT12) (-> ,TT21 ,TT22)) `(-> ,(meet-blame TT11 TT21 L) ,(meet-blame TT12 TT22 L)))
+            (`((-> ,TT11 ,TT12) (-> ,TT21 ,TT22)) 
+             `(-> ,(meet-blame TT11 TT21 L) ,(meet-blame TT12 TT22 L)))
             (`other (error 'meet "types are not consistent, blame is " L)))))
-(define cast
-  (lambda (l e T1 T2)
-    (if (consistent? T1 T2)
-        #t #f)))
-(define prim
-  (lambda (op e)
-    #t))
-(define call
-  (lambda (e1 e2)
-    #t))
+
+;Returns true if k is int or bool
 (define constant?
   (lambda (k)
     (or (integer? k) (boolean? k))))
+
+;Returns true if op is inc, dec, or zero?
 (define operator?
   (lambda (op)
     (memq op '(inc dec zero?))))
+
+;Returns type of constant or operator function
 (define typeof
   (lambda (k)
     (pmatch k
@@ -56,17 +69,16 @@
             (`dec `(-> int int))
             (`zero? `(-> int bool)))))
 
-
+;If two types are different type1 is casted to type2
 (define mk-cast
   (lambda (l e T1 T2)
     (cond ((equal? T1 T2) e)
           (else `(cast ,l ,e : ,T1 -> ,T2)))))
 
 
-
+;Typehecks a program in the gradually-typed lambda calculus
 (define typecheck
-  (lambda (env e)
-    
+  (lambda (env e)    
     (pmatch e
             (`,k (guard (constant? k)) `(,k ,(typeof k)))
             (`(,op ,e1 ,l) (guard (operator? op))
@@ -82,10 +94,7 @@
                          (let ((if-T (meet thn-T els-T)))                                                                                    
                            `((if ,(mk-cast l new-cnd cnd-T `bool) 
                                  ,(mk-cast l new-thn thn-T if-T) 
-                                 ,(mk-cast l new-els els-T if-T)) ,if-T)))
-                        ;NOTE: (mk-cast l new-els els-T if-T) WAS ORIGINALLY 
-                        ;(mk-cast l new-thn els-T if-T), but i changed that because
-                        ;i think it was a mistake
+                                 ,(mk-cast l new-els els-T if-T)) ,if-T)))                        
                         (else (error 'typecheck "ill-typed expression"))))))
             (`,x (guard (symbol? x)) `(,x ,(car (cdr (assq x env)))))
             (`(lambda (,x) ,e1) (typecheck env `(lambda (,x : dyn) ,e1)))
@@ -97,10 +106,8 @@
                      (`(,new-e ,e-T)
                       (cond
                         ((consistent? e-T T) `(,(mk-cast l new-e e-T T) ,T))                        
-                        (else (error 'typecheck "cast between inconsistent types"))))))
-            
-            (`(,e1 ,e2 ,l)
-             
+                        (else (error 'typecheck "cast between inconsistent types"))))))            
+            (`(,e1 ,e2 ,l)             
              (pmatch `( ,(typecheck env e2) ,(typecheck env e1))
                      (`((,new-e2 ,T2) (,new-e1 dyn))                     
                       `((call ,(mk-cast l new-e1 `dyn `(-> ,T2 dyn)) ,new-e2) dyn))
@@ -112,22 +119,3 @@
                      (`((,new-e2 ,T2) (,new-e1 ,other-T))                   
                       (error 'typecheck "call to non-function")))))))
 
-
-
-(define apply-lazy
-  (lambda (apply-cast)    
-    (lambda (F v)
-      (let ([recur (apply-lazy apply-cast)])
-        (pmatch F
-                (`(cast ,l ,F1 : (-> ,T1 ,T2) -> (-> ,T3 ,T4))
-                 (letB (x3 (apply-cast l v T3 T1))
-                       (letB (x4 (recur F1 x3))
-                             (apply-cast l x4 T2 T4))))
-                (`,proc (guard (procedure? proc)) (proc v)))))))
-
-(define-syntax letB
-  (syntax-rules ()
-    [(letB [x e1] e2)
-     (pmatch e1
-             (`(blame ,L) `(blame ,L))
-             (`,v (let ((x v)) e2)))]))
