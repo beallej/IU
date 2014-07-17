@@ -1,8 +1,11 @@
 #lang racket
 (require  "pmatch.rkt")
-(require racket/include)
 (require "tcheck_modified.rkt")
 (require test-engine/racket-tests)
+
+;By Josie Bealle
+;Performs dynamic analysis on a gradually-typed lambda calculus program
+;Created with the assistance of Jeremy Siek and his gradual typing lab
 
 
 ;Original type observation global list
@@ -37,9 +40,11 @@
         (display "\n\n--------------------------------------------\n")      
         (set! cov '())))))
 
+;Alpha varies an expression
 (define unique
   (lambda (exp)
     (vary exp (hash))))
+;Alpha varies an expression, recursively
 (define vary
   (lambda (exp env)
     (pmatch exp
@@ -69,9 +74,14 @@
           (/ (round (* 10000.0 dec)) 100)))))
 
 ;Calculates coverage
-;pop and push car, it is the number of sub expressions.
-;pop, push, recur on next "car" subexpressions
-;if stack empty, it is because it is missing 0's from a true if statement.          
+;pop car of the list of numbers. It is the number of sub expressions for a given expression.
+;pop and recur on next "car" subexpressions, 
+;multiplying each sum by their respective percentage of the program
+;3 represents a function application: evaluating the first and second expressions, and applying
+;the second to the first
+;2 represents an if statement: the test and either the consequent or alternative are evaluated
+;1 represents an expression containing 1 subexpression
+;e represents a terminal expression: a number, boolean, closure
 (define calc-cov
   (lambda ()    
     (if (null? cov) 0
@@ -80,8 +90,7 @@
           (cond
             [(eq? '3 front) (+ (* 1/3 (calc-cov)) (* 1/3 (calc-cov)) (* 1/3 (calc-cov)))]
             [(eq? '2 front) (+ (* 1/3 (calc-cov)) (* 1/3 (calc-cov)))]
-            [(eq? '1 front) (calc-cov)]
-            [(eq? '0 front) 0]
+            [(eq? '1 front) (calc-cov)]            
             [(eq? 'e front) 1.0])))))
 
 
@@ -92,7 +101,7 @@
     (set! cov (append cov `(,val)))))
 
 
-;Evaluates expression and records types found
+;Evaluates expression and records types of values bound to variables
 (define evalRec
   (lambda (exp env)    
     (pmatch exp         
@@ -147,8 +156,7 @@
                                      (set! type-obs (extend-Trec x1 `(-> ,tv2 ,ret-T) type-obs))
                                      (set! type-obs (extend-Trec x tv2 type-obs)))                                   
                                    (cset '1)                                   
-                                   (evalRec `(,e11 ,ret-T) (extend-env x v2 env11)))))
-                         
+                                   (evalRec `(,e11 ,ret-T) (extend-env x v2 env11)))))                         
                          (`(closure ,x ,par-T ,e11 ,ret-T ,env11);                                         
                           (set! type-obs (extend-Trec x (meet par-T (type v2)) type-obs))
                           ;------------------------------^is this meet necessary?
@@ -165,7 +173,8 @@
 
 
 
-;so we can remember the variable name if we need to bind it to a function type that we won't find out until later
+;A special evaluate/record function that keeps a variable name 
+         ;if we need to bind it to a function type that we won't discover until later
 (define evalRec2
   (lambda (exp env)
     (pmatch exp
@@ -173,12 +182,18 @@
             (`(cast ,L ,x : ,T1 -> ,T2) 
              (guard (symbol? x))
              (cset '1)(cset 'e)
-             (let ((val (env-lookup x env)) (tp (meet-blame T1 T2 L)))              
+             (let ((val (env-lookup x env)))              
                (pmatch val                  
                        (`(closure ,x1 ,par-T ,e1 ,ret-T ,env1) 
-                        (pmatch tp
-                                (`(-> ,T3 ,T4) 
-                                 (let ((new_p (meet par-T T3)) (new_r (meet ret-T T4))) `(,x (closure ,x1 ,new_p ,e1 ,new_r ,env1) record)))))                       
+                        (pmatch `(,T1 ,T2)
+                                (`((-> ,T11 ,T12) (-> ,T21 ,T22)) 
+                                 (let ((new_p (meet par-T T21)) (new_r (meet ret-T T22))) 
+                                   `(,x (closure ,x1 ,new_p ,e1 ,new_r ,env1) record)))
+                                (`(dyn (-> ,T21 ,T22)) 
+                                 (let ((new_p (meet par-T T21)) (new_r (meet ret-T T22))) 
+                                   `(,x (closure ,x1 ,new_p ,e1 ,new_r ,env1) record)))
+                                (`((-> ,T11 ,T12) dyn) 
+                                 `(,x (closure ,x1 ,T11 ,e1 ,T12 ,env1) record))))                       
                        (`,other `(,x ,other record)))))
             (`,other (evalRec exp env)))))
 
@@ -191,7 +206,7 @@
             (`(closure ,x ,par-T ,e1 ,ret-T ,env1) `(-> ,par-T ,ret-T))
             (`(cast ,l ,v : ,T1 -> dyn) (meet-blame (type v) T1 l))
             (`(cast ,l ,v : dyn -> ,T2) (meet-blame (type v) T2 l))
-            (`(cast ,l ,v : (-> ,T1 ,T2) ->(-> ,T3 ,T4)) (meet-blame (type v) `(-> ,(meet T1 T3) ,(meet T2 T4)) l))))) 
+            (`(cast ,l ,v : (-> ,T1 ,T2) -> (-> ,T3 ,T4)) (meet-blame (type v) `(-> ,(meet T1 T3) ,(meet T2 T4)) l))))) 
 
 ;Inserts types from type-obs into expression
 (define insert-types
@@ -216,7 +231,7 @@
              `(,(insert-types e) : ,T ,l))
             (`,x `,x))))
 
-
+;Collapses casts on an expression by removing dynamic casts or casts to the same type
 (define collapse
   (lambda (exp)
     (pmatch exp
@@ -251,6 +266,7 @@
                                 (`,other `(,end ,T)))))
             (`,else (error "Invalid input"))))) 
 
+;Returns true if input is a valid type
 (define istype?
   (lambda (tp)
     (pmatch tp
@@ -302,7 +318,7 @@
             [(consistent? type1 type2) (check-consistency (cdr types) (meet type1 type2))]
             [else (error "types inconsistent" type1"   " (car types))])))))
 
-;returns the type of something, incase it couldn't be done before
+;Returns the type of something, incase it couldn't be done before
 (define resolve-type
   (lambda (tv)
     (pmatch tv
@@ -313,24 +329,29 @@
 
 
 
-;--------------------OTHER FUNCTIONS THAT I NO LONGER USE BUT DON'T WANT TO THROW AWAY--------------------------
-
-
-
-
 ;--------------------TESTING FUNCTIONS--------------------------------------------------------------------------
-
+;applies app to fun
 (define funapp
   (lambda (fun app)
     (evals (list fun (unique app) (gensym 'BLAME_)))))
+
+;used for curried application
 (define appli
   (lambda (fun app)
     (list fun (unique app) (gensym 'BLAME_))))
+
+
 ;--------------------TESTS--------------------------------------------------------------------------------------
+(evals (unique '((lambda (x) (x 3 L)) ((lambda (y : dyn) (inc y L)) : (-> int int) M) N)))
+(check-error (evals (unique '((lambda (x) (x 3 L)) ((lambda (y : dyn) (inc y L)) : (-> bool int) M) N))))
 (evals (unique '((3 : dyn L) : int M)))
 (evals (unique '(lambda (x : int) (#t : dyn L))))
 (check-error (evals (unique
                      '(((((lambda (x : dyn) x) : (-> int dyn) L) : (-> dyn dyn) L) : (-> dyn bool) L)))))
+(evals (unique '((lambda (z) z) ((lambda (x : int) (#t : dyn L)) : (-> int int) L) N)))
+(check-error (evals (unique '((lambda (z) (z 3 M)) ((lambda (x : int) (#t : dyn L)) : (-> int int) L) N))))
+
+
 (check-error (evals (unique
                      '(((((lambda (x : int) x) : (-> int dyn) L) : (-> dyn dyn) L) : (-> dyn bool) L) 7 L))))
 (evals (unique
