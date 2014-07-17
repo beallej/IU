@@ -34,9 +34,6 @@
           (display types-out)
           (display "\n\nCollapsed: \n")
           (display (collapse types-out)))
-        
-        ;(display "\n\nCheck with new types: \n")
-        ;(display (typecheck '() (insert-types exp)))
         (display "\n\n--------------------------------------------\n")      
         (set! cov '())))))
 
@@ -97,8 +94,7 @@
 
 ;Evaluates expression and records types found
 (define evalRec
-  (lambda (exp env)
-    
+  (lambda (exp env)    
     (pmatch exp         
             (`(,number int) (guard (number? number)) (cset 'e) number)
             (`(,boolean bool) (guard (boolean? boolean)) (cset 'e) boolean)
@@ -123,60 +119,23 @@
             (`(cast ,L ,e : ,T1 -> ,T2)
              (cset '1)
              (pmatch `(,T1 ,T2)
-                     (`((-> ,T11 ,T12) (-> ,T21 ,T22))                      
-                      ;(let ((newval (gensym)) (newe (evalRec e env)))
+                     (`((-> ,T11 ,T12) (-> ,T21 ,T22))
                       (let ((newval (gensym)))
-;;                        (cset 'e)
-;;                        (pmatch e
-;;                                (`(lambda (,a : ,T11) (cast ,La ,ae : ,Ta1 -> ,Ta2))
-;;                                `(closure  ,a ,(meet-blame T11 T21 L) ,ae ,(meet-blame T22 (meet-blame T12 (meet-blame Ta1 Ta2 La) L) L) ,env))                          
-;;                                (`(lambda (,a : ,T11) ,ae)
-;;                                 `(closure  ,a ,(meet-blame T11 T21 L) ,ae ,(meet-blame T22 T12 L) ,env))
-;;                                (`((lambda (,a : ,T11) (cast ,La ,ae : ,Ta1 -> ,Ta2)) (-> ,T11 ,Tb))
-;;                                 `(closure  ,a ,(meet-blame T11 T21 L) ,ae ,(meet-blame T22 (meet-blame T12 (meet Tb (meet-blame Ta1 Ta2 La)) L) L) ,env))
-;;                                (`((lambda (,a : ,T11) ,ae) (-> ,T11 ,Tb))
-;;                                 `(closure  ,a ,(meet-blame T11 T21 L) ,ae ,(meet-blame T22 (meet Tb T12) L) ,env)))))
-                        ;(pmatch newe
-                       
-                        `(closure ,newval ,T21 (willtype ,L (call ,e (cast ,L ,newval : ,T21 -> ,T11)) ,T22 ,env) ,T22 ,env)))
-                                
-                                
-                                
-                                
-                               ; (`(closure ,a ,Ta ,e2 ,Tb ,env22)
-                                 ;`(closure ,newval ,T21 ,`(call ,e (cast ,L ,newval : ,T21 -> ,T11)) ,T22 ,env)))))
+                        (cset 'e)
+                        `(closure ,newval ,T21 (willtype ,L (call ,e (cast ,L ,newval : ,T21 -> ,T11)) ,T22) ,T22 ,env)))
                      (`(,T3 ,T4)
-                      (display "\n")
-                      (display exp)
-                      (display "\n")
                       (pmatch e
                               (`(cast ,M ,f : ,T1a -> ,T2a)
                                (if (consistent? T1a T4)                     
                                    (evalRec e env) (error "cast between inconsistent types!") ))
                               (`,other (evalRec e env))))))
-            
-            
-            
-            
-            ;             (cset '1)
-            ;             (let ((val (evalRec e env)) (tp (meet-blame T1 T2 L)))
-            ;               (pmatch tp
-            ;                       (`(-> ,T3 ,T4)
-            ;                        (pmatch val                  
-            ;                                (`(closure ,x ,par-T ,e1 ,ret-T ,env1) 
-            ;                                 (let ((newval (gensym)))
-            ;                                   `(closure ,newval ,T3 ,(evalRec (e (cast ,L ,newval : ,T3 -> ,T1) ,L) env) ,T4 ,env1) ,T4 ,env)
-            ;;                                (`(wrapper ,x ,T33 ,v ,T44 ,env1)
-            ;;                                 `(wrapper ,x ,T3 ,e ,T4 ,env1))                                
-            ;                                (`,other val))))            
             (`(lambda (,x : ,T) ,e) (evalRec `(,exp (-> ,T dyn)) env))
             (`((lambda (,x : ,T) ,e)(-> ,T ,ret-T)) 
              (cset 'e)
              (set! type-obs (extend-Trec x T type-obs))
              `(closure ,x ,T ,e ,ret-T ,env))            
             (`((call ,e1 ,e2) ,T2) (evalRec `(call ,e1 ,e2) env))
-            (`(call ,e1 ,e2)
-             
+            (`(call ,e1 ,e2)             
              (cset '3)(cset '1)
              (let ([v1 (evalRec2 e1 env)]) (cset '1) 
                (let ([v2 (evalRec e2 env)])
@@ -187,23 +146,18 @@
                                    (let ((tv2 (meet par-T (type v2))))                                     
                                      (set! type-obs (extend-Trec x1 `(-> ,tv2 ,ret-T) type-obs))
                                      (set! type-obs (extend-Trec x tv2 type-obs)))                                   
-                                   (cset '1)
-                                   
+                                   (cset '1)                                   
                                    (evalRec `(,e11 ,ret-T) (extend-env x v2 env11)))))
                          
                          (`(closure ,x ,par-T ,e11 ,ret-T ,env11);                                         
                           (set! type-obs (extend-Trec x (meet par-T (type v2)) type-obs))
                           ;------------------------------^is this meet necessary?
-                          (cset '1)
-                          
+                          (cset '1)                          
                           (evalRec `(,e11 ,ret-T) (extend-env x v2 env11)))
-                         (`,other (display "\n")(display v1) (error "what are you even doing here (bad application) "))))))
-           ; (`(willtype ,L ,e ,T22 ,env11) 
-             ;(let ((new-e (evalRec e env11))) (if (consistent? (type new-e) T22) new-e (error "bad cast!"))))
-
-            (`(willtype ,L (call ,e (cast ,L ,newval : ,T21 -> ,T11)) ,T22 ,env11) 
-             (let ((new-e (evalRec e env11))) (if (consistent? (type new-e) T22) new-e (error "bad cast" (type new-e) T22))))
-            ;probably can simplify this..
+                         (`,other (error "what are you even doing here (bad application) "))))))            
+            (`(willtype ,L ,e ,T22)
+             (cset '1)
+             (let ((new-e (evalRec e env))) (if (consistent? (type new-e) T22) new-e (error "bad cast!" (type new-e) T22))))            
             (`(,x ,ref) (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
             (`,x (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
             (`(,e ,T) (evalRec e env))
@@ -281,7 +235,7 @@
                      (`,e1 `(,e1 ,(meet T1 T2)))))             
             (`(lambda (,x : ,T) ,e) `(lambda (,x : ,T) ,(collapse e)))
             (`((lambda (,x : ,T) ,e)(-> ,T ,ret-T))
-             `((lambda (,x : ,T) ,(collapse e)(-> ,T ,ret-T))))          
+             `((lambda (,x : ,T) ,(collapse e)) (-> ,T ,ret-T)))          
             (`((call ,e1 ,e2) ,T2) `(,(collapse `(call ,e1 ,e2)) ,T2))
             (`(call ,e1 ,e2)
              (let ((c1 (collapse e1)) (c2 (collapse e2)))
@@ -291,7 +245,10 @@
                        (`,other `(call ,c1 ,c2)))))
             (`(,x ,ref) (guard (symbol? x)) `(,x ,ref))
             (`,x (guard (symbol? x))`,x)
-            (`(,e ,T) `(,(collapse e) ,T))
+            (`(,e ,T) (let ((end (collapse e)))
+                        (pmatch end
+                                (`(,e2 ,T2) `(,e2 ,(meet T T2)))
+                                (`,other `(,end ,T)))))
             (`,else (error "Invalid input"))))) 
 
 (define istype?
@@ -326,15 +283,12 @@
 ;Looks up what ids correspond to in type 
 (define env-lookupT
   (lambda (id env)
-    ;(let ((info (assoc id env)))
     (let ((info (hash-ref env id '())))
-      ;(if info
       (cond
         [(null? info) 'dyn]
         [(null? (cdr info)) (resolve-type (car info))]
         [else (check-consistency (cdr info) (resolve-type (car info)))]))))
-;(check-consistency (car (cdr info)) (resolve-type (car (car (cdr info)))))
-;'null))))
+
 
 ;Checks to see if all types in type env for a given id agree-- they are all the same or some are dyn
 (define check-consistency
@@ -358,14 +312,6 @@
             (`(-> ,t1 ,t2) `(-> ,(resolve-type t1) ,(resolve-type t2))))))
 
 
-;            (`(type (,op ,e ,L)) (guard (member op '(inc dec))) `int) ;WHAT TO DO WITH E??
-;            (`(type (zero? ,e ,L)) `bool)
-;            (`(type (,e : ,T ,L)) T)
-;            (`(type ,id) 
-;             (let ((typed (env-lookupT id type-obs))) (if (equal? `null typed) `dyn typed))))))
-
-
-
 
 ;--------------------OTHER FUNCTIONS THAT I NO LONGER USE BUT DON'T WANT TO THROW AWAY--------------------------
 
@@ -381,22 +327,25 @@
   (lambda (fun app)
     (list fun (unique app) (gensym 'BLAME_))))
 ;--------------------TESTS--------------------------------------------------------------------------------------
-;(evals (unique '((3 : dyn L) : int M)))
-;(evals (unique '(lambda (x : int) (#t : dyn L))))
-;(evals (unique
-  ;      '(((((lambda (x : int) x) : (-> int dyn) L) : (-> dyn dyn) L) : (-> dyn bool) L) 7 L)))
-;(evals (unique
-;        '((lambda (x : int) (#t : dyn L)) : (-> int int) L)))
-;;(evals (unique
-; ;       '((lambda (x : int) #t) : (-> int int) L)))
+(evals (unique '((3 : dyn L) : int M)))
+(evals (unique '(lambda (x : int) (#t : dyn L))))
+(check-error (evals (unique
+                     '(((((lambda (x : dyn) x) : (-> int dyn) L) : (-> dyn dyn) L) : (-> dyn bool) L)))))
+(check-error (evals (unique
+                     '(((((lambda (x : int) x) : (-> int dyn) L) : (-> dyn dyn) L) : (-> dyn bool) L) 7 L))))
+(evals (unique
+        '((lambda (x : int) (#t : dyn L)) : (-> int int) L)))
+(check-error (evals (unique
+                     '(((lambda (x : int) (#t : dyn L)) : (-> int int) L) 7 L))))
+(check-error (evals (unique
+                     '((lambda (x : int) #t) : (-> int int) L))))
 ;(evals (unique
 ;        '(((lambda (x : int) #t) : (-> int dyn) L) : (-> int int) L)))
-;(evals (unique
-;        '(((lambda (x : int) (((((#t : dyn L) : bool L) : dyn L) : bool L) : dyn L)) : (-> int int) L) 42 L)))
-(evals (unique
-        '(((lambda (x : int) (#t : dyn L)) : (-> int int) L) 42 L)))
-;(evals (unique
-        ;'((((lambda (x : int) #t) : (-> int dyn) L) : (-> int int) L) 42 L)))
+(check-error (evals (unique
+                     '(((lambda (x : int) (((((#t : dyn L) : bool L) : dyn L) : bool L) : dyn L)) : (-> int int) L) 42 L))))
+(check-error (evals (unique
+                     '((((lambda (x : int) #t) : (-> int dyn) L) : (-> int int) L) 42 L))))
+
 ;(evals (unique '#t))
 ;(evals (unique '7))
 ;(evals (unique '(inc 7 L)))
