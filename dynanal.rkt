@@ -103,7 +103,7 @@
 
 ;Evaluates expression and records types of values bound to variables
 (define evalRec
-  (lambda (exp env)  (display `("\n" ,exp "\n"))  
+  (lambda (exp env) 
     (pmatch exp         
             (`(,number int) (guard (number? number)) (cset 'e) number)
             (`(,boolean bool) (guard (boolean? boolean)) (cset 'e) boolean)
@@ -134,42 +134,38 @@
                         (cset 'e)
                         (set! type-obs (extend-Trec newval T21 type-obs))
                         `(closure ,newval ,T21 (cast ,L (call ,e (cast ,L ,newval : ,T21 -> ,T11)) : ,T12 -> ,T22) ,T22 ,env)))
-                        ;`(closure ,newval ,T21 (willtype ,L (call ,e (cast ,L ,newval : ,T21 -> ,T11)) ,T22) ,T22 ,env)))
-                     (`(dyn (-> ,T21 ,T22))
-                      (let ((newval (gensym)))
-                        (cset 'e)
-                        (set! type-obs (extend-Trec newval T21 type-obs))
-                        `(closure ,newval ,T21 (cast ,L (call ,e (cast ,L ,newval : ,T21 -> dyn)) : dyn -> ,T22) ,T22 ,env)))
-                         ;`(closure ,newval ,T21 (willtype ,L (call ,e (cast ,L ,newval : ,T21 -> dyn)) ,T22) ,T22 ,env)))
+                     ;`(closure ,newval ,T21 (willtype ,L (call ,e (cast ,L ,newval : ,T21 -> ,T11)) ,T22) ,T22 ,env)))
+;                     (`(dyn (-> ,T21 ,T22))
+;                      (let ((newval (gensym)))
+;                        (cset 'e)
+;                        (set! type-obs (extend-Trec newval T21 type-obs))
+;                        (display "\n LOOKHERE \n")
+;                        `(closure ,newval ,T21 (cast ,L (call ,e (cast ,L ,newval : ,T21 -> dyn)) : dyn -> ,T22) ,T22 ,env)))
+                     ;`(closure ,newval ,T21 (willtype ,L (call ,e (cast ,L ,newval : ,T21 -> dyn)) ,T22) ,T22 ,env)))
                      (`(,T3 dyn)
                       `(cast ,L ,(evalRec e env) : ,T3 -> dyn))
                      (`(dyn ,T4)
                       ;(pmatch e
                       (let ((new-expr (evalRec e env)))
-                      (pmatch new-expr
-                              
-                              (`(cast ,M ,f : ,T1a -> dyn)
-                               (display "\nSPOT 0\n")
-                               (display exp) (display "\n")
-                               (display e) (display "\n")
-                               (display new-expr) (display "\n")
-                               (display f) (display "\n")
-                              (if (consistent? T1a T4)
-                                  (pmatch f                           ;is this the right thing to do?
-                                          (`(cast ,N ,g : ,T2a -> ,T2b)
-                                           (if (consistent? T2a T4)
-                                               g (error "seriously, what is it this time")))                                          
-                                          (`,other other))
-                                 (error "cast between inconsistent types!" T1a T4)))
-                              (`,other (guard (symbol? e))
-                                        (display "\nSPOT 1\n")
-                                       (if (consistent? (env-lookupT e type-obs) T4)
-                                           other (error "cast between inconsistent types!" (env-lookupT e type-obs) T4)))
-                              (`,other  (error "what's going on" (evalRec e env) T4)))))
-;                              (`(cast ,M ,f : ,T1a -> ,T2a)
-;                               (if (consistent? T1a T4)                     
-;                                   (begin (display `(,f "\t",T1a"\t" ,T2a))(evalRec e env)) (error "cast between inconsistent types!")))
-;                              (`,other (evalRec e env))))
+                        (pmatch new-expr
+                                
+                                (`(cast ,M ,f : ,T1a -> dyn) 
+                                 ;(display `("\n LOOK: \n" ,exp "\n" ,e "\n" ,new-expr "\n"))
+                                 (if (consistent? T1a T4)
+                                     (pmatch f                           ;is this the right thing to do?
+                                             ;(`(cast ,N ,g : ,T2a -> ,T2b)
+                                              ;(if (consistent? T2a T4)
+                                                 ; g (error "seriously, what is it this time")))                                          
+                                             (`,other other))
+                                     (error "cast between inconsistent types!" T1a T4)))
+                                ;(`,other (guard (symbol? e))
+                                        ; (if (consistent? (env-lookupT e type-obs) T4)
+                                            ; other (error "cast between inconsistent types!" (env-lookupT e type-obs) T4)))
+                                (`,other  (error "what's going on" exp "\n" new-expr "\n" e "\n" T4)))))
+                     ;                              (`(cast ,M ,f : ,T1a -> ,T2a)
+                     ;                               (if (consistent? T1a T4)                     
+                     ;                                   (begin (display `(,f "\t",T1a"\t" ,T2a))(evalRec e env)) (error "cast between inconsistent types!")))
+                     ;                              (`,other (evalRec e env))))
                      (`,other (error "cast between inconsistent types!-- shouldn't get here" T1 T2))))
             (`(lambda (,x : ,T) ,e) (evalRec `(,exp (-> ,T dyn)) env))
             (`((lambda (,x : ,T) ,e)(-> ,T ,ret-T)) 
@@ -193,25 +189,25 @@
                                   (`(cast ,L (closure ,x ,par-T ,e11 ,ret-T ,env11) : ,T1 -> ,T2)
                                    (if (consistent? `(-> ,par-T ,ret-T) T2)
                                        (let ((tv2 (meet par-T (type v2)))) (set! type-obs (extend-Trec x1 `(-> ,tv2 ,ret-T) type-obs))
-                                        (set! type-obs (extend-Trec x tv2 type-obs))                                   
-                                   (cset '1)                                   
-                                   (evalRec `(,e11 ,ret-T) (extend-env x v2 env11)))
+                                         (set! type-obs (extend-Trec x tv2 type-obs))                                   
+                                         (cset '1)                                   
+                                         (evalRec `(,e11 ,ret-T) (extend-env x v2 env11)))
                                        (error "type inconsistency")))))
                          (`(closure ,x ,par-T ,e11 ,ret-T ,env11)
                           (set! type-obs (extend-Trec x (meet par-T (type v2)) type-obs))                          
                           (cset '1)                          
                           (evalRec `(,e11 ,ret-T) (extend-env x v2 env11)))
                          (`(cast ,L (closure ,x ,par-T ,e11 ,ret-T ,env11) : ,T1 -> ,T2)
-                                   (if (consistent? `(-> ,par-T ,ret-T) T2)
-                                       (let ((tv2 (meet par-T (type v2))))
-                                        (set! type-obs (extend-Trec x tv2 type-obs))                                   
-                                   (cset '1)                                   
-                                   (evalRec `(,e11 ,ret-T) (extend-env x v2 env11)))
-                                       (error "type inconsistency")))
+                          (if (consistent? `(-> ,par-T ,ret-T) T2)
+                              (let ((tv2 (meet par-T (type v2))))
+                                (set! type-obs (extend-Trec x tv2 type-obs))                                   
+                                (cset '1)                                   
+                                (evalRec `(,e11 ,ret-T) (extend-env x v2 env11)))
+                              (error "type inconsistency")))
                          (`,other (error "what are you even doing here (bad application) "))))))
             (`(willtype ,L ,e ,T22)
-               (cset '1)
-               (let ((new-e (evalRec e env))) (if (consistent? (type new-e) T22) new-e (error "bad cast!" (type new-e) T22))))            
+             (cset '1)
+             (let ((new-e (evalRec e env))) (if (consistent? (type new-e) T22) new-e (error "bad cast!" (type new-e) T22))))            
             (`(,x ,ref) (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
             (`,x (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
             (`(,e ,T) (evalRec e env))
@@ -382,7 +378,7 @@
             [(equal? type1 type2) (check-consistency (cdr types) type1)]
             [(consistent? type1 type2) (check-consistency (cdr types) (meet type1 type2))]
             [else `dyn])))))
-            ;[else (error "types inconsistent" type1"   " (car types))])))))
+;[else (error "types inconsistent" type1"   " (car types))])))))
 
 ;Returns the type of something, incase it couldn't be done before
 (define resolve-type
@@ -408,6 +404,10 @@
 
 
 ;--------------------TESTS--------------------------------------------------------------------------------------
+(define f9 (unique '(lambda (x) ((lambda (y) (y x L)) ((lambda (z) (inc (inc z L) L)) : (-> int int) L) L))))
+(funapp f9 4)
+
+
 (evals (unique '(((lambda (x : int) (lambda (y : dyn) y)) 10 L) 20 M)))   ;10 is x, ;20 is y --> 20
 
 (evals (unique
@@ -416,12 +416,12 @@
 
 (evals (unique
         '((lambda (x : int) (#t : dyn ML)) : (-> int int) ML))) ;should not error
-(check-error (evals (unique
-        '((lambda (y : dyn) (((lambda (x : int) (#t : dyn A))  (y : int B) C) : int D)) 5 E))))
-(check-error (evals (unique
-        '(((lambda (x : int) (#t : dyn ML)) : (-> int int) ML) 7 B))))
+(check-error (evals (unique  ;should error
+                     '((lambda (y : dyn) (((lambda (x : int) (#t : dyn A))  (y : int B) C) : int D)) 5 E)))) ;should error
+(check-error (evals (unique  ;should error
+                     '(((lambda (x : int) (#t : dyn ML)) : (-> int int) ML) 7 B))))  ;should error
 
-(check-error (evals (unique '((#t : dyn  L) : int M))))
+(check-error (evals (unique '((#t : dyn  L) : int M)))) ;should error
 (define funfun (unique '(lambda (x : (-> dyn dyn)) x)))
 (funapp funfun '(lambda (y : int) y))
 (funapp funfun '(lambda (z : bool) z))
@@ -432,37 +432,36 @@
         '((lambda (x : (-> dyn dyn)) (x 42 L)) (lambda (y : dyn) y) M)))
 
 
-(check-error (evals (unique
-        '((((lambda (x : int) (#t : dyn K)) : dyn L) : (-> int int) P) 42 N))))
-(check-error (evals (unique
-        '(((lambda (x : int) ((lambda (y : int) 42) : (-> dyn dyn) L)) 42 M) (#t : dyn O) N))))
+(check-error (evals (unique ;should error
+                     '((((lambda (x : int) (#t : dyn K)) : dyn L) : (-> int int) P) 42 N))))
+(check-error (evals (unique ;should error
+                     '(((lambda (x : int) ((lambda (y : int) 42) : (-> dyn dyn) L)) 42 M) (#t : dyn O) N))))
 
 
 (evals (unique '((lambda (x) (x 3 L)) ((lambda (y : dyn) (inc y L)) : (-> int int) M) N)))
-(check-error (evals (unique '((lambda (x) (x 3 L)) ((lambda (y : dyn) (inc y L)) : (-> bool int) M) N))))
+ (check-error(evals (unique '((lambda (x) (x 3 L)) ((lambda (y : dyn) (inc y L)) : (-> bool int) M) N)))) ;should error
 (evals (unique '((3 : dyn L) : int M)))
 (evals (unique '(lambda (x : int) (#t : dyn L))))
-(check-error (evals (unique
-                     '(((((lambda (x : dyn) x) : (-> int dyn) L) : (-> dyn dyn) L) : (-> dyn bool) L)))))
+ 
 (evals (unique '((lambda (z) z) ((lambda (x : int) (#t : dyn L)) : (-> int int) L) N)))
-(check-error (evals (unique '((lambda (z) (z 3 M)) ((lambda (x : int) (#t : dyn L)) : (-> int int) L) N))))
+(check-error  (evals (unique '((lambda (z) (z 3 M)) ((lambda (x : int) (#t : dyn L)) : (-> int int) L) N)))) ;should error
 
 
-(check-error (evals (unique
-                     '(((((lambda (x : int) x) : (-> int dyn) L) : (-> dyn dyn) L) : (-> dyn bool) L) 7 L))))
+(check-error (evals (unique ;should error
+                      '(((((lambda (x : int) x) : (-> int dyn) L) : (-> dyn dyn) L) : (-> dyn bool) L) 7 L))))
 (evals (unique
         '((lambda (x : int) (#t : dyn ML)) : (-> int int) ML)))
-(check-error (evals (unique
+ (check-error(evals (unique ;should error
                      '(((lambda (x : int) (#t : dyn L)) : (-> int int) L) 7 L))))
-(check-error (evals (unique
+(check-error (evals (unique ;should error
                      '((lambda (x : int) #t) : (-> int int) L))))
-(check-error (evals (unique
-        '(((lambda (x : int) #t) : (-> int dyn) L) : (-> int int) L))))
-(check-error (evals (unique
+(check-error(evals (unique ;should error --in collapse--b/c function never applied
+                     '(((lambda (x : int) #t) : (-> int dyn) L) : (-> int int) L))))
+(check-error (evals (unique ;should error
                      '(((lambda (x : int) 
                           (((((#t : dyn L) : bool L) : dyn L) : bool L) : dyn L))
                         : (-> int int) L) 42 L))))
-(check-error (evals (unique
+(check-error (evals (unique ;should error
                      '((((lambda (x : int) #t) : (-> int dyn) L) : (-> int int) L) 42 L))))
 
 (evals (unique '#t))
@@ -515,19 +514,18 @@
 (funapp f6 (appli f7 (appli f8 9)))
 (set! type-obs (hash))
 
-(define f9 (unique '(lambda (x) ((lambda (y) (y x L)) ((lambda (z) (inc (inc z L) L)) : (-> int int) L) L))))
-(funapp f9 4)
+
 ;
-;(define f10 (unique '(lambda (x) x))) 
-;(funapp f10 (unique '(if #t 6 7 L)))
-;(define f11 (unique '(lambda (b) (if b 7 8 L))))
-;(evals (unique `(if #t ,(appli f11 #t) 9 L)))
-;(evals (unique '(lambda (m) (m 3 L))))
-;
-;(define f15 (unique '(lambda (j) (j 3 L))))
-;
-;(define f12 (unique '(lambda (g) ((lambda (h) ((lambda (i) (if i g h L)) #t L)) 4 L))))
-;(funapp f12 9)
+(define f10 (unique '(lambda (x) x))) 
+(funapp f10 (unique '(if #t 6 7 L)))
+(define f11 (unique '(lambda (b) (if b 7 8 L))))
+(evals (unique `(if #t ,(appli f11 #t) 9 L)))
+(evals (unique '(lambda (m) (m 3 L))))
+
+(define f15 (unique '(lambda (j) (j 3 L))))
+
+(define f12 (unique '(lambda (g) ((lambda (h) ((lambda (i) (if i g h L)) #t L)) 4 L))))
+(funapp f12 9)
 (evals (unique '((lambda (x : dyn) x) : dyn L)))
 (evals (unique '((lambda (x : int) x) : dyn M)))
 (evals (unique '(((lambda (x : dyn) x) : dyn L) 7 M)))

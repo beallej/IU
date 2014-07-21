@@ -73,7 +73,15 @@
 (define mk-cast
   (lambda (l e T1 T2)
     (cond ((equal? T1 T2) e)
-          (else `(cast ,l ,e : ,T1 -> ,T2)))))
+          (else 
+           (pmatch `(,T1 ,T2)
+                   (`((-> ,T3 ,T4) dyn) 
+                   `(cast ,l (cast ,l ,e : ,T1 -> (-> dyn dyn)) : (-> dyn dyn) -> ,T2))
+                   (`(dyn (-> ,T3 ,T4))
+                    `(cast ,l (cast ,l ,e : dyn -> (-> dyn dyn)) : (-> dyn dyn) -> ,T2))
+                    (`(,T3 ,T4)                 
+                   
+                   `(cast ,l ,e : ,T1 -> ,T2)))))))
 
 
 ;Typehecks a program in the gradually-typed lambda calculus
