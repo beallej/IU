@@ -113,8 +113,7 @@
             (`(prim ,op ,e) (guard (member op '(inc dec zero?)))
                             (cset '1)
                             (let ((nexp (evalRec e env)))
-                              (cond
-                                ((not (number? nexp)) (error "expression not number, problem is " nexp "\n" exp))
+                              (cond                                
                                 ((eq? 'inc op) (+ 1 nexp))
                                 ((eq? 'dec op) (- nexp 1))
                                 ((eq? 'zero? op) (zero? nexp)))))
@@ -124,7 +123,7 @@
                                                        (if texp
                                                            (begin (cset '1)(evalRec c env))
                                                            (begin (cset '1)(evalRec a env)))
-                                                       (error "test not boolean " exp))))
+                                                       (error "test not boolean: " t))))
             (`(cast ,L ,e : ,T1 -> ,T2)        
              (cset '1)
              (pmatch `(,T1 ,T2)
@@ -133,40 +132,18 @@
                       (let ((newval (gensym)))
                         (cset 'e)
                         (set! type-obs (extend-Trec newval T21 type-obs))
-                        `(closure ,newval ,T21 (cast ,L (call ,e (cast ,L ,newval : ,T21 -> ,T11)) : ,T12 -> ,T22) ,T22 ,env)))
-                     ;`(closure ,newval ,T21 (willtype ,L (call ,e (cast ,L ,newval : ,T21 -> ,T11)) ,T22) ,T22 ,env)))
-;                     (`(dyn (-> ,T21 ,T22))
-;                      (let ((newval (gensym)))
-;                        (cset 'e)
-;                        (set! type-obs (extend-Trec newval T21 type-obs))
-;                        (display "\n LOOKHERE \n")
-;                        `(closure ,newval ,T21 (cast ,L (call ,e (cast ,L ,newval : ,T21 -> dyn)) : dyn -> ,T22) ,T22 ,env)))
-                     ;`(closure ,newval ,T21 (willtype ,L (call ,e (cast ,L ,newval : ,T21 -> dyn)) ,T22) ,T22 ,env)))
+                        `(closure ,newval ,T21 (cast ,L (call ,e (cast ,L ,newval : ,T21 -> ,T11)) : ,T12 -> ,T22) ,T22 ,env)))                     
                      (`(,T3 dyn)
                       `(cast ,L ,(evalRec e env) : ,T3 -> dyn))
-                     (`(dyn ,T4)
-                      ;(pmatch e
+                     (`(dyn ,T4)                     
                       (let ((new-expr (evalRec e env)))
-                        (pmatch new-expr
-                                
-                                (`(cast ,M ,f : ,T1a -> dyn) 
-                                 ;(display `("\n LOOK: \n" ,exp "\n" ,e "\n" ,new-expr "\n"))
+                        (pmatch new-expr                                
+                                (`(cast ,M ,f : ,T1a -> dyn)                                  
                                  (if (consistent? T1a T4)
-                                     (pmatch f                           ;is this the right thing to do?
-                                             ;(`(cast ,N ,g : ,T2a -> ,T2b)
-                                              ;(if (consistent? T2a T4)
-                                                 ; g (error "seriously, what is it this time")))                                          
-                                             (`,other other))
-                                     (error "cast between inconsistent types!" T1a T4)))
-                                ;(`,other (guard (symbol? e))
-                                        ; (if (consistent? (env-lookupT e type-obs) T4)
-                                            ; other (error "cast between inconsistent types!" (env-lookupT e type-obs) T4)))
-                                (`,other  (error "what's going on" exp "\n" new-expr "\n" e "\n" T4)))))
-                     ;                              (`(cast ,M ,f : ,T1a -> ,T2a)
-                     ;                               (if (consistent? T1a T4)                     
-                     ;                                   (begin (display `(,f "\t",T1a"\t" ,T2a))(evalRec e env)) (error "cast between inconsistent types!")))
-                     ;                              (`,other (evalRec e env))))
-                     (`,other (error "cast between inconsistent types!-- shouldn't get here" T1 T2))))
+                                     f
+                                     (error "cast between inconsistent types! blame" L "and" M)))                               
+                                (`,other  (error "what's going on? blame " L)))))
+                     (`,other (error "cast between inconsistent types!-- shouldn't get here: blame" L))))
             (`(lambda (,x : ,T) ,e) (evalRec `(,exp (-> ,T dyn)) env))
             (`((lambda (,x : ,T) ,e)(-> ,T ,ret-T)) 
              (cset 'e)
@@ -192,7 +169,7 @@
                                          (set! type-obs (extend-Trec x tv2 type-obs))                                   
                                          (cset '1)                                   
                                          (evalRec `(,e11 ,ret-T) (extend-env x v2 env11)))
-                                       (error "type inconsistency")))))
+                                       (error "type inconsistency: blame " L)))))
                          (`(closure ,x ,par-T ,e11 ,ret-T ,env11)
                           (set! type-obs (extend-Trec x (meet par-T (type v2)) type-obs))                          
                           (cset '1)                          
@@ -203,15 +180,12 @@
                                 (set! type-obs (extend-Trec x tv2 type-obs))                                   
                                 (cset '1)                                   
                                 (evalRec `(,e11 ,ret-T) (extend-env x v2 env11)))
-                              (error "type inconsistency")))
-                         (`,other (error "what are you even doing here (bad application) "))))))
-            (`(willtype ,L ,e ,T22)
-             (cset '1)
-             (let ((new-e (evalRec e env))) (if (consistent? (type new-e) T22) new-e (error "bad cast!" (type new-e) T22))))            
+                              (error "type inconsistency, blame " L)))
+                         (`,other (error "what are you even doing here (bad application): " other))))))            
             (`(,x ,ref) (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
             (`,x (guard (symbol? x)) (cset 'e) (let ((ans (env-lookup x env))) ans))
             (`(,e ,T) (evalRec e env))
-            (`,else (error "Invalid input" exp))))) 
+            (`,else (error "Invalid input: " exp))))) 
 
 
 
@@ -318,7 +292,7 @@
                           (pmatch end
                                   (`(,e2 ,T2) `(,e2 ,(meet T T2)))
                                   (`,other `(,end ,T)))))
-              (`,else (error "Invalid input"))))))
+              (`,else (error "Invalid input " else))))))
 
 ;Removes extraneous dynamic label
 (define rdyn
@@ -404,6 +378,7 @@
 
 
 ;--------------------TESTS--------------------------------------------------------------------------------------
+
 (define f9 (unique '(lambda (x) ((lambda (y) (y x L)) ((lambda (z) (inc (inc z L) L)) : (-> int int) L) L))))
 (funapp f9 4)
 
