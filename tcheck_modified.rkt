@@ -3,7 +3,6 @@
 (provide typecheck)
 (provide consistent?)
 (provide meet)
-(provide meet-blame)
 
 ;All functions taken from:
 
@@ -25,9 +24,9 @@
              (and (consistent? FT12 FT22) (consistent? FT11 FT21)))
             (`,other #f))))
 
-;Returns the most specific combination of two consistent types
+;Returns the most specific combination of two consistent types, displays blame label if fail
 (define meet
-  (lambda (TT1 TT2) 
+  (lambda (TT1 TT2 [blame `(,TT1 ,TT2)]) 
     (pmatch `(,TT1 ,TT2)
             (`(,TT1 dyn) TT1)
             (`(dyn ,TT2) TT2)
@@ -35,19 +34,7 @@
             (`(bool bool) `bool)
             (`((-> ,TT11 ,TT12) (-> ,TT21 ,TT22)) 
              `(-> ,(meet TT11 TT21) ,(meet TT12 TT22)))
-            (`other (error 'meet "types are not consistent")))))
-
-;Returns the most specific combination of two consistent types, displays blame label if fail
-(define meet-blame
-  (lambda (TT1 TT2 L) 
-    (pmatch `(,TT1 ,TT2)
-            (`(,TT1 dyn) TT1)
-            (`(dyn ,TT2) TT2)
-            (`(int int) `int)
-            (`(bool bool) `bool)
-            (`((-> ,TT11 ,TT12) (-> ,TT21 ,TT22)) 
-             `(-> ,(meet-blame TT11 TT21 L) ,(meet-blame TT12 TT22 L)))
-            (`other (error 'meet "types are not consistent, blame is " L)))))
+            (`other (error 'meet "types are not consistent, blame: " blame)))))
 
 ;Returns true if k is int or bool
 (define constant?
