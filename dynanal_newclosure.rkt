@@ -24,7 +24,7 @@
         ;(display "Original expression: \n")
         (display exp)
         (display "\n")
-        (display "\n\nOriginal check: \n")
+        ;(display "\n\nOriginal check: \n")
         (display typed-e)
         ;(display "\n\nEvaluation: \n")
         (display "\n")
