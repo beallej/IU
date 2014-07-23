@@ -5,7 +5,7 @@
 
 ;By Josie Bealle
 ;Performs dynamic analysis on a gradually-typed lambda calculus program
-;Created with the assistance of Jeremy Siek and his gradual typing lab
+;Created with the assistance of Jeremy Siek, Mike Vitousek, Matteo Cimini, and the rest of the gradual typing lab at IUB
 
 
 ;Original type observation global list
@@ -23,11 +23,9 @@
       (begin
         (display "Original expression: \n")
         (display exp)
-        (display "\n")(display "\n")
         (display "\n\nOriginal check: \n")
         (display typed-e)
         (display "\n\nEvaluation: \n")
-        (evalRec typed-e '())
         (display (evalRec typed-e '()))
         (display "\n\nCoverage: \n")
         (display (cov-pc))
@@ -122,7 +120,7 @@
                                 ((eq? 'inc op) (+ 1 nexp))
                                 ((eq? 'dec op) (- nexp 1))
                                 ((eq? 'zero? op) (zero? nexp)))))
-            (`((if ,t ,c ,a) ,l) (evalRec `(if ,t ,c ,a) env))
+            (`((if ,t ,c ,a) ,T2) (evalRec `(if ,t ,c ,a) env))
             (`(if ,t ,c ,a) (cset '2) (cset '1) (let ((texp (evalRec t env)))                                      
                                                   (if  (boolean? texp)
                                                        (if texp
@@ -168,7 +166,7 @@
                                      (set! type-obs (extend-Trec x1 `(-> ,tv2 ,(type evaled)) type-obs))
                                      (set! type-obs (extend-Trec x tv2 type-obs))
                                      evaled))
-                                  (`,other (error "not a function!"))))
+                                  (`,other (error "not a function!  " ans))))
                          (`(closure ,x ,e11 ,env11)                         
                           (set! type-obs (extend-Trec x (type v2) type-obs))                          
                           (cset '1)                     
@@ -193,6 +191,7 @@
                (pmatch val                  
                        (`(closure ,x1 ,e1 ,env1)                        
                         (pmatch `(,T1 ,T2)
+                                (`(,T3 ,T4) (guard (equal? T3 T4)) `(,x ,val record))
                                 (`((-> ,T11 ,T12) (-> ,T21 ,T22)) 
                                  (let ((newval (gensym)))                                   
                                    (set! type-obs (extend-Trec newval T21 type-obs))
@@ -366,7 +365,7 @@
 ;--------------------TESTS--------------------------------------------------------------------------------------
 
 ;Non erronous tests
-
+(evals (unique '((lambda (x : dyn) (x 10 L)) (lambda (y : dyn) y) M)))
 (define f9 (unique '(lambda (x) ((lambda (y) (y x L)) ((lambda (z) (inc (inc z L) L)) : (-> int int) L) L))))
 (funapp f9 4)
 (evals (unique '(((lambda (x : int) (lambda (y : dyn) y)) 10 L) 20 M)))   ;10 is x, ;20 is y --> 20
@@ -403,7 +402,7 @@
 (funapp (appli f04 #t) '(#f : dyn M))
 (define f01 (unique '(lambda (x) x)))
 (funapp f01 '(lambda (y : dyn) (y : dyn L)))
-(funapp f01 '(lambda (y : dyn) (y : int M))) ;What should this return anyway??
+(funapp f01 '(lambda (y : dyn) (y : int M))) 
 (funapp f01 '(lambda (y : int) (y : dyn N)))
 (funapp f01 '(lambda (y : int) (y : int O)))
 (define f1 (unique '(lambda (c : dyn) (if c (lambda (v) (dec v L)) (lambda (w) (inc w L)) L))))
